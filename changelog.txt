@@ -1,0 +1,58 @@
+## v4.1.4 - Post-correction improvements
+- Button hold duration measurement: tracks how long flush plate button is pressed
+- Extended hold (≥ threshold) skips post-correction — extra volume is intentional
+- manualPressThresholdMs setting in Data Log / Post-Correction (default 500ms, 0 = disabled)
+- Post-Correction card hides fields when disabled for cleaner UI
+- Updated description text to explain hold-time filtering
+- Version format fix: single digit patch number (v4.1.4)
+- Fixed loadConfig() to handle struct size changes during config migration
+
+## v4.1.3 - Wake-up detection accuracy & UI consistency
+- Early GPIO snapshot: reads button pins immediately at boot (< 1ms), before loadConfig/initStorage/initHardware
+- Captures reed switch state before magnet passes (~50-200ms window), solving misidentification
+- Volume-based post-correction: auto-corrects button ID if volume doesn't match expected range
+  - PF_BTN with volume ≥ threshold → corrected to FF_BTN
+  - FF_BTN with volume ≤ threshold → corrected to PF_BTN
+  - Thresholds configurable in Settings / Data Log
+  - Enable/disable via checkbox
+- Post-correction events logged to btn_log.txt (same storage path as datalog)
+  - Format: boot count, GPIO bitmask, early snapshot, correction direction, volume
+- CONFIG_VERSION 10: added postCorrectionEnabled, pfToFfThreshold, ffToPfThreshold to DatalogConfig
+- UI consistency fixes:
+  - Device page-header div properly closed
+  - Hardware warning shows full description
+  - Save buttons standardized: "Save" for normal, "Save & Restart" for restart-required
+  - Form hints use consistent form-hint class
+  - Move/Rename popup button renamed to "Apply"
+
+## v4.1.2 - Wake-up fix
+- Reverted to debounce-based button detection (esp_sleep_get_gpio_wakeup_status unreliable on ESP32-C3)
+- Reads all button states after debounce delay, FF has priority
+- CSS moved to external /style.css file (~30KB flash saved)
+
+## v4.1.1 - UI & optimization
+- File Manager: Move/Rename popup with folder selection
+- Settings hints: Hardware, Theme, Datalog descriptions
+- Restart popup unified (Hardware & Network use same helper)
+- Code size reduced (~5KB saved)
+
+## v4.1.0 - Reliability improvements
+- Wake-up uses esp_sleep_get_gpio_wakeup_status() for accurate button ID
+- Button debounce configurable in Settings > Hardware (20-500ms, default 100ms)
+- Edge detection for buttons - prevents multiple counts from held buttons
+- Non-blocking WiFi connect (doesn't delay button detection at startup)
+- Web handlers block during active measurement to prevent interference
+- Normal mode: auto-sleep after 2s if no button pressed at boot
+
+## v4.0.0 - Major release
+- Removed multi-language (English only, saves ~5KB flash)
+- Removed IconConfig from struct (config reset on upgrade)
+- System files always from LittleFS (logo, board, favicon, chart)
+- Dashboard: "Buttons Only" filter, "Exclude 0.00L" checkbox
+- Dashboard: Export filtered data to CSV
+- Settings: Import/Export with progress bars
+- Settings: Manual Device ID editing
+- File Manager: Upload progress bar
+- Datalog includes wake time AND sleep time
+- Restart button with confirmation popup
+- Test Mode: WiFi pin as LED output for visual check
