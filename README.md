@@ -50,4 +50,217 @@ Volume-based correction of button identification:
 - Manual press detection:
   - If button held longer than `manualPressThresholdMs` (default 500ms), correction is skipped
 
-Post-correction events are logged to:
+Post-correction events are logged to: /btn_log.txt
+
+---
+
+## 🌐 Web Interface
+
+Accessible in:
+
+- 🔵 AP Mode (default)
+- 🟢 Client Mode (WiFi network)
+- 🔴 Logging Mode (offline)
+
+### Web Features
+
+- Dashboard with:
+  - Button-only filtering
+  - Exclude 0.00L option
+  - CSV export
+- Settings pages:
+  - Device
+  - Hardware
+  - Flow Meter
+  - Datalog
+  - Network
+- File Manager:
+  - Upload
+  - Move / Rename
+  - Folder selection
+- Import / Export configuration
+- Restart confirmation popup
+- Live status JSON endpoints
+- Integrated changelog viewer (reads `/changelog.txt`)
+
+---
+
+## 💾 Storage Support
+
+Selectable storage type:
+
+- LittleFS (default)
+- SD Card
+
+### Datalog Features
+
+- Configurable file rotation
+- Max size / entry limits
+- Filename timestamp option
+- Device ID in logs
+- Wake time AND sleep time included
+- Flexible formatting:
+  - Date format
+  - Time format
+  - End format (duration / time)
+  - Volume format
+
+---
+
+## 🔧 Hardware Configuration (Default Pins – XIAO ESP32-C3)
+
+| Function        | Default Pin |
+|---------------|------------|
+| WiFi Trigger   | D0 (GPIO 2) |
+| Wakeup FF      | D1 (GPIO 3) |
+| Wakeup PF      | D2 (GPIO 4) |
+| Flow Sensor    | D6 (GPIO 21) |
+| RTC (DS1302)   | 5 / 6 / 7 |
+| SD Card        | 10–13 |
+
+CPU default frequency: **80 MHz**
+
+---
+
+## 🌍 Network Configuration
+
+### Default AP Mode
+
+- SSID: `WaterLogger`
+- Password: `water12345`
+- Default IP: `192.168.4.1`
+
+### Client Mode
+
+- DHCP or Static IP supported
+- Configurable:
+  - IP
+  - Gateway
+  - Subnet
+  - DNS
+- NTP Server default: pool.ntp.org
+- Default timezone: EET (UTC+2)
+
+---
+
+## 📊 API Endpoints
+
+| Endpoint | Description |
+|----------|------------|
+| `/api/status` | Live device status (JSON) |
+| `/api/recent_logs` | Last 5 log entries |
+| `/api/changelog` | Loads changelog from LittleFS |
+| `/api/regen-id` | Generate new device ID from MAC |
+
+---
+
+## 🆔 Device ID
+
+- Automatically generated from ESP32 MAC address
+- Uses last 4 bytes of MAC
+- Can be manually edited
+- Regeneration available via API
+
+---
+
+## 🧪 Test Mode
+
+- WiFi pin used as LED output
+- Visual flow validation
+- Adjustable blink duration
+
+---
+
+## 🛠 Technical Stack
+
+- Arduino Framework
+- ESPAsyncWebServer
+- AsyncTCP
+- LittleFS
+- SD
+- DS1302 RTC
+- ArduinoJson
+- ESP32 Deep Sleep API
+- FlowSensor library
+
+---
+
+## 📦 Version History (Latest)
+
+### v4.1.4 – Post-Correction Improvements
+
+- Button hold duration measurement
+- Extended hold skips correction
+- `manualPressThresholdMs` setting (default 500ms)
+- Cleaner UI when post-correction disabled
+- Config migration handling fix
+- Standardized version format
+
+### v4.1.3
+
+- Early GPIO snapshot (<1ms)
+- Volume-based correction logic introduced
+- Post-correction logging
+- CONFIG_VERSION 10
+
+### v4.1.2
+
+- Wake-up reliability fix
+- CSS moved to external file (~30KB flash saved)
+
+### v4.1.1
+
+- File Manager improvements
+- UI consistency fixes
+- Code size optimization (~5KB saved)
+
+### v4.1.0 – Major Release
+
+- Removed multi-language (English only)
+- CSV export
+- Import/Export settings
+- Manual Device ID editing
+- Restart confirmation popup
+- Wake & sleep timestamps in datalog
+
+---
+
+## 🚀 Flashing
+
+1. Select board: XIAO ESP32-C3
+2. Set CPU frequency to 160 MHz
+3. Upload filesystem (LittleFS) including:
+- `/changelog.txt`
+- /styles.css
+- Static assets /www/
+
+---
+
+## 🔒 Debug Mode
+
+#define DEBUG_MODE 0
+Set to 1 to enable Serial debug output
+Saves ~3KB flash when disabled.
+
+## 🧩 Project Goals
+
+Reliable water usage tracking
+
+Minimal false button identification
+
+Ultra-low power consumption
+
+Professional embedded UI
+
+Easy configuration & deployment
+
+## 📄 License
+
+Internal / Custom project (define license if needed).
+
+## 👨‍💻 Author
+
+Petko Georgiev
+Villeroy & Boch Bulgaria
+Sevlievo, Bulgaria
+
