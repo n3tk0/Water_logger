@@ -215,17 +215,7 @@ void sendChunkedHtml(AsyncWebServerRequest *r, const char* title, std::function<
 // FILE LIST GENERATOR
 // ============================================================================
 
-// Get filesystem for current view
-fs::FS* getCurrentViewFS() {
-    if (currentStorageView == "sdcard" && sdAvailable) {
-        return &SD;
-    } else if (littleFsAvailable) {
-        return &LittleFS;
-    }
-    return nullptr;
-}
-
-void writeFileList(Print& out, const String& dir, bool editMode = false) {
+void writeFileList(Print& out, const String& dir, bool editMode) {
     fs::FS* viewFS = getCurrentViewFS();
     if (!viewFS) {
         out.print(F("<p>Storage not available</p>"));
@@ -283,71 +273,12 @@ void writeFileList(Print& out, const String& dir, bool editMode = false) {
     if (!hasFiles) out.print(F("<div class='list-item text-muted'>Empty directory</div>"));
 }
 
-// ============================================================================
-// STORAGE INFO
-// ============================================================================
-void getStorageInfo(uint64_t &used, uint64_t &total, int &percent, const String& storageType = "") {
-    used = 0; total = 0; percent = 0;
-    
-    String sType = storageType;
-    if (sType.isEmpty()) {
-        // Default to active storage
-        sType = (config.hardware.storageType == STORAGE_SD_CARD && sdAvailable) ? "sdcard" : "internal";
-    }
-    
-    if (sType == "sdcard" && sdAvailable) {
-        used = SD.usedBytes();
-        // Use cardSize() for actual SD card capacity (totalBytes has ~4GB limit)
-        total = SD.cardSize();
-    } else if (sType == "internal" && littleFsAvailable) {
-        used = LittleFS.usedBytes();
-        total = LittleFS.totalBytes();
-    }
-    
-    if (total > 0) percent = (used * 100ULL) / total;
-}
-
-String getStorageBarColor(int percent) {
-    if (percent >= 90) return config.theme.storageBar90Color;
-    if (percent >= 70) return config.theme.storageBar70Color;
-    return config.theme.storageBarColor;
-}
 
 // ============================================================================
 // DATALOG FILE HELPERS
 // ============================================================================
 
 
-// ============================================================================
-// RTC TIME STRING
-// ============================================================================
-String getRtcTimeString() {
-    if (!Rtc) {
-        return "No RTC";
-    }
-    RtcDateTime now = Rtc->GetDateTime();
-    // Check for valid time - Year 2000 with Month/Day 0 means unset
-    if (now.Year() < 2020 || now.Year() > 2100 || now.Month() == 0 || now.Day() == 0) {
-        return "Set Time";
-    }
-    char buf[20];
-    snprintf(buf, sizeof(buf), "%02u:%02u:%02u", now.Hour(), now.Minute(), now.Second());
-    return String(buf);
-}
-
-String getRtcDateTimeString() {
-    if (!Rtc) return "No RTC";
-    RtcDateTime now = Rtc->GetDateTime();
-    // Year 2000 with Month/Day 0 means RTC is not set
-    if (now.Year() < 2020 || now.Year() > 2100 || now.Month() == 0 || now.Day() == 0) {
-        return "Not Set - Use Manual Set";
-    }
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u", 
-        now.Year(), now.Month(), now.Day(),
-        now.Hour(), now.Minute(), now.Second());
-    return String(buf);
-}
 
 // ============================================================================
 // WEB SERVER SETUP
