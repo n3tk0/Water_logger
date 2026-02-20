@@ -1,5 +1,5 @@
 #include "DataLogger.h"
-#include "Globals.h"
+#include "../core/Globals.h"
 #include "StorageManager.h"
 #include "RtcManager.h"
 #include <LittleFS.h>

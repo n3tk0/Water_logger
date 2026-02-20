@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <FS.h>
-#include "Config.h"
+#include "../core/Config.h"
 
 // ---- String helpers ----
 String formatFileSize(uint64_t bytes);

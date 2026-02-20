@@ -1,5 +1,5 @@
 #include "HardwareManager.h"
-#include "Globals.h"
+#include "../core/Globals.h"
 #include "RtcManager.h"
 
 // ============================================================================

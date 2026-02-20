@@ -1,6 +1,6 @@
 #include "StorageManager.h"
-#include "Globals.h"
-#include "Utils.h"
+#include "../core/Globals.h"
+#include "../utils/Utils.h"
 #include <LittleFS.h>
 #include <SD.h>
 #include <SPI.h>
