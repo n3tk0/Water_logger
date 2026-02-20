@@ -1,5 +1,10 @@
 #pragma once
 
+#include <Arduino.h>
+#include <ESPAsyncWebServer.h>
+#include <ArduinoJson.h>
+#include <functional>
+
 /**
  * Инициализира и стартира AsyncWebServer с всички endpoint-и.
  *
@@ -10,14 +15,14 @@
  *   Всеки endpoint, който извиква ESP.restart() директно (напр. /save_hardware,
  *   /save_network), ТРЯБВА да извика safeWiFiShutdown() ПРЕДИ рестарта:
  *
- *       #include "WiFiManager.h"
+ *       #include "../managers/WiFiManager.h"
  *       ...
  *       safeWiFiShutdown();
  *       delay(100);
  *       ESP.restart();
  *
  *   Handlers, които само задават shouldRestart = true, са OK –
- *   главния loop() в WaterLogger.ino ще извика safeWiFiShutdown() автоматично.
+ *   главния loop() в Logger.ino ще извика safeWiFiShutdown() автоматично.
  */
 void setupWebServer();
 
