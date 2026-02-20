@@ -3,20 +3,39 @@
 ## 📁 Файлова структура
 
 ```
-WaterLogger/
-├── WaterLogger.ino          ← Само setup() и loop()
-├── Config.h                 ← Всички struct-ове, enum-и, константи
-├── Globals.h                ← extern декларации на глобални променливи
-├── Globals.cpp              ← Дефиниции на глобалните променливи
-├── Utils.h / Utils.cpp      ← formatFileSize, sanitize, buildPath, deleteRecursive
-├── ConfigManager.h/.cpp     ← loadConfig, saveConfig, loadDefaultConfig, migrateConfig
-├── WiFiManager.h/.cpp       ← connectToWiFi, startAPMode, safeWiFiShutdown, syncTimeFromNTP
-├── StorageManager.h/.cpp    ← initStorage, getActiveDatalogFile, getStorageInfo, ...
-├── RtcManager.h/.cpp        ← initRtc, backupBootCount, restoreBootCount, getRtcTimeString, ...
-├── HardwareManager.h/.cpp   ← initHardware, debounceButton, ISR handlers
-├── DataLogger.h/.cpp        ← addLogEntry, flushLogBufferToFS
-└── WebServer.h / WebServer.cpp ← setupWebServer + всички web handlers (от оригиналния Logger.ino)
+Water_logger/
+├── Logger.ino               ← Само setup() и loop()
+│
+├── core/                    ← Основни типове, константи и глобални променливи
+│   ├── Config.h             ← Всички struct-ове, enum-и, константи
+│   ├── Globals.h            ← extern декларации на глобални променливи
+│   └── Globals.cpp          ← Дефиниции на глобалните променливи
+│
+├── managers/                ← Бизнес логика – всички мениджъри
+│   ├── ConfigManager.h/.cpp ← loadConfig, saveConfig, loadDefaultConfig, migrateConfig
+│   ├── WiFiManager.h/.cpp   ← connectToWiFi, startAPMode, safeWiFiShutdown, syncTimeFromNTP
+│   ├── StorageManager.h/.cpp← initStorage, getActiveDatalogFile, getStorageInfo, ...
+│   ├── RtcManager.h/.cpp    ← initRtc, backupBootCount, restoreBootCount, getRtcTimeString, ...
+│   ├── HardwareManager.h/.cpp ← initHardware, debounceButton, ISR handlers
+│   └── DataLogger.h/.cpp    ← addLogEntry, flushLogBufferToFS
+│
+├── web/                     ← Уеб сървър и handlers
+│   └── WebServer.h/.cpp     ← setupWebServer + всички web handlers
+│
+└── utils/                   ← Помощни функции
+    ├── Utils.h
+    └── Utils.cpp            ← formatFileSize, sanitize, buildPath, deleteRecursive
 ```
+
+### Правила за `#include` пътищата
+
+| Файл | Включва | С път |
+|------|---------|-------|
+| `Logger.ino` | core, managers, web, utils | `"core/Globals.h"`, `"managers/ConfigManager.h"`, ... |
+| `managers/*.cpp` | core | `"../core/Globals.h"` |
+| `managers/StorageManager.cpp` | utils | `"../utils/Utils.h"` |
+| `utils/Utils.h` | core | `"../core/Config.h"` |
+| `core/Globals.h` | core | `"Config.h"` (същата директория) |
 
 ---
 
@@ -47,7 +66,7 @@ void safeWiFiShutdown() {
 
 ### Кога се използва
 
-**В `WaterLogger.ino` loop():**
+**В `Logger.ino` loop():**
 ```cpp
 if (shouldRestart && millis() - restartTimer > 2000) {
     safeWiFiShutdown();   // ← добавено
@@ -86,15 +105,15 @@ ESP.restart();
 ## 🚀 Upload последователност
 
 1. **Filesystem image:** LittleFS с `/style.css`, `/changelog.txt`, `/favicon.ico`
-2. **Firmware:** `WaterLogger.ino`
+2. **Firmware:** `Logger.ino`
 
 ---
 
-## ⚙️ Важни бележки за WebServer.cpp
+## ⚙️ Важни бележки за web/WebServer.cpp
 
-При преместване на код от `Logger.ino` в `WebServer.cpp`:
+При преместване на код от `Logger.ino` в `web/WebServer.cpp`:
 
-1. Добави `#include "WiFiManager.h"` за `safeWiFiShutdown()`
+1. Добави `#include "../managers/WiFiManager.h"` за `safeWiFiShutdown()`
 2. Замени всички директни `ESP.restart()` в web handlers с:
    ```cpp
    safeWiFiShutdown();

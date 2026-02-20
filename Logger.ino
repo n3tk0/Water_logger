@@ -4,17 +4,17 @@
  * AUTHOR:  Petko Georgiev / Villeroy & Boch Bulgaria
  *
  * МОДУЛНА СТРУКТУРА:
- *   Config.h/.cpp        – структури, enums, константи
- *   Globals.h/.cpp       – глобални променливи
- *   Utils.h/.cpp         – помощни функции (format, sanitize, path)
- *   ConfigManager.h/.cpp – зареждане/запис на конфигурация
- *   WiFiManager.h/.cpp   – WiFi, AP, NTP + safeWiFiShutdown()
- *   StorageManager.h/.cpp– LittleFS / SD управление
- *   RtcManager.h/.cpp    – DS1302, bootcount backup, wake reason
- *   HardwareManager.h/.cpp – init pins, ISR, debounce
- *   DataLogger.h/.cpp    – log buffer, flush to FS
- *   WebServer.h/.cpp     – AsyncWebServer handlers
- *   WaterLogger.ino      – само setup() и loop()
+ *   core/Config.h/.cpp         – структури, enums, константи
+ *   core/Globals.h/.cpp        – глобални променливи
+ *   utils/Utils.h/.cpp         – помощни функции (format, sanitize, path)
+ *   managers/ConfigManager.h/.cpp  – зареждане/запис на конфигурация
+ *   managers/WiFiManager.h/.cpp    – WiFi, AP, NTP + safeWiFiShutdown()
+ *   managers/StorageManager.h/.cpp – LittleFS / SD управление
+ *   managers/RtcManager.h/.cpp     – DS1302, bootcount backup, wake reason
+ *   managers/HardwareManager.h/.cpp – init pins, ISR, debounce
+ *   managers/DataLogger.h/.cpp     – log buffer, flush to FS
+ *   web/WebServer.h/.cpp       – AsyncWebServer handlers
+ *   Logger.ino                 – само setup() и loop()
  **************************************************************************************************/
 
 #define CONFIG_FREERTOS_UNICORE 1
@@ -22,15 +22,15 @@
 #include <Arduino.h>
 #include <esp_sleep.h>
 
-#include "Globals.h"
-#include "ConfigManager.h"
-#include "HardwareManager.h"
-#include "StorageManager.h"
-#include "RtcManager.h"
-#include "WiFiManager.h"
-#include "DataLogger.h"
-#include "WebServer.h"    // setupWebServer()
-#include "Utils.h"
+#include "core/Globals.h"
+#include "managers/ConfigManager.h"
+#include "managers/HardwareManager.h"
+#include "managers/StorageManager.h"
+#include "managers/RtcManager.h"
+#include "managers/WiFiManager.h"
+#include "managers/DataLogger.h"
+#include "web/WebServer.h"    // setupWebServer()
+#include "utils/Utils.h"
 
 // ============================================================================
 // SETUP

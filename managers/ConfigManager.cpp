@@ -1,5 +1,5 @@
 #include "ConfigManager.h"
-#include "Globals.h"
+#include "../core/Globals.h"
 #include <LittleFS.h>
 #include "esp_mac.h"
 
