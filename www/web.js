@@ -284,26 +284,74 @@ function confirmRestart() {
 // ============================================================================
 // ══ PAGE: DASHBOARD ══
 // ============================================================================
+
+// Load Chart.js once, then call cb()
+var _chartJsLoading = false;
+var _chartJsLoaded  = false;
+var _chartJsCbs     = [];
+
+function dbLoadChartJs(cb) {
+    if (_chartJsLoaded) { cb(); return; }
+    _chartJsCbs.push(cb);
+    if (_chartJsLoading) return;
+    _chartJsLoading = true;
+
+    var th  = (ST.theme || {});
+    var src = (th.chartSource === 0)
+        ? (th.chartLocalPath || '/chart.min.js')
+        : 'https://cdn.jsdelivr.net/npm/chart.js';
+
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = function() {
+        _chartJsLoaded  = true;
+        _chartJsLoading = false;
+        _chartJsCbs.forEach(function(fn) { fn(); });
+        _chartJsCbs = [];
+    };
+    s.onerror = function() {
+        // If local path failed, fall back to CDN
+        if (th.chartSource === 0) {
+            var s2 = document.createElement('script');
+            s2.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+            s2.onload = function() {
+                _chartJsLoaded  = true;
+                _chartJsLoading = false;
+                _chartJsCbs.forEach(function(fn) { fn(); });
+                _chartJsCbs = [];
+            };
+            document.head.appendChild(s2);
+        } else {
+            _chartJsLoading = false;
+            var err = document.getElementById('db-errorMsg');
+            if (err) { err.textContent = 'Failed to load Chart.js'; err.style.display = 'block'; }
+        }
+    };
+    document.head.appendChild(s);
+}
+
 function dbInit() {
-    // Populate file selector
-    fetch('/api/filelist?filter=log&recursive=1')
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            var sel = document.getElementById('db-fileSelect');
-            if (!sel) return;
-            sel.innerHTML = '';
-            if (!d.files || !d.files.length) {
-                sel.innerHTML = '<option>No log files found</option>';
-                return;
-            }
-            d.files.forEach(function(f) {
-                var opt = document.createElement('option');
-                opt.value = f.path; opt.textContent = f.path;
-                if (ST.currentFile && f.path === ST.currentFile) opt.selected = true;
-                sel.appendChild(opt);
+    // Load Chart.js first, then populate file selector
+    dbLoadChartJs(function() {
+        fetch('/api/filelist?filter=log&recursive=1')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var sel = document.getElementById('db-fileSelect');
+                if (!sel) return;
+                sel.innerHTML = '';
+                if (!d.files || !d.files.length) {
+                    sel.innerHTML = '<option>No log files found</option>';
+                    return;
+                }
+                d.files.forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f.path; opt.textContent = f.path;
+                    if (ST.currentFile && f.path === ST.currentFile) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                dbLoadData();
             });
-            dbLoadData();
-        });
+    });
 }
 
 function dbLoadData() {
@@ -376,6 +424,13 @@ function dbProcessData(data) {
 function dbRenderChart(data) {
     var ctx = document.getElementById('db-chart');
     if (!ctx) return;
+
+    // If Chart.js is not yet loaded, load it then re-render
+    if (typeof Chart === 'undefined') {
+        dbLoadChartJs(function() { dbRenderChart(data); });
+        return;
+    }
+
     if (dbChart) { dbChart.destroy(); dbChart = null; }
     var th = ST.theme || {};
     var ffColor = th.ffColor || '#3498db', pfColor = th.pfColor || '#e74c3c', otherColor = th.otherColor || '#95a5a6';
@@ -390,7 +445,6 @@ function dbRenderChart(data) {
         if (lblFmt===2) return d.date+' '+d.time+(d.boot?' #'+d.boot:'');
         return d.date+' '+d.time;
     });
-    if (typeof Chart === 'undefined') return; // Chart.js not loaded
     dbChart = new Chart(ctx, {
         type: 'bar',
         data: { labels: lbls, datasets: [{ label: 'Liters (L)', data: data.map(function(d){return d.vol;}), backgroundColor: clr, borderWidth: 0 }] },
