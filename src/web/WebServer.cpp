@@ -169,9 +169,12 @@ input[type=text]{width:100%;padding:7px 11px;border:1px solid #e2e8f0;border-rad
   <!-- RESTART -->
   <div class="card">
     <div class="card-header">&#x1F504; Device Control</div>
-    <div class="card-body">
+    <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="if(confirm('Restart now?'))fetch('/restart').then(function(){setTimeout(function(){location.reload();},3000)})">
         &#x1F504; Restart Device
+      </button>
+      <button class="btn btn-danger" onclick="doFormat()">
+        &#x1F5D1; Format LittleFS
       </button>
     </div>
   </div>
@@ -179,6 +182,22 @@ input[type=text]{width:100%;padding:7px 11px;border:1px solid #e2e8f0;border-rad
 </div><!-- /container -->
 <script>
 var LEGACY = ['/web.js','/style.css','/index.html','/index.htm'];
+
+function doFormat(){
+  if(!confirm('ERASE ALL FILES in LittleFS? This will delete config and UI!'))return;
+  var msg=document.getElementById('uploadMsg');
+  msg.textContent='Formatting... please wait...'; msg.className='msg warn';
+  fetch('/format_fs',{method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){
+        msg.textContent='Format OK! Restarting...';
+        setTimeout(function(){location.reload();},5000);
+      } else {
+        msg.textContent='Format failed: '+d.error; msg.className='msg err';
+      }
+    }).catch(function(e){msg.textContent='Error: '+e;msg.className='msg err';});
+}
 
 document.getElementById('dropZone').addEventListener('dragover',function(e){e.preventDefault();this.classList.add('over');});
 document.getElementById('dropZone').addEventListener('dragleave',function(){this.classList.remove('over');});
@@ -231,14 +250,14 @@ function loadFiles(){
   var warnEl=document.getElementById('legacyWarn');
   wwwEl.innerHTML='Loading&#x2026;'; rootEl.innerHTML='Loading&#x2026;';
 
-  // Load /www/
-  fetch('/api/filelist?storage=internal&dir=/www/')
+  // Load /www
+  fetch('/api/filelist?storage=internal&dir=/www')
     .then(function(r){return r.json();})
     .then(function(d){
       var files=d.files||[];
-      if(!files.length){wwwEl.innerHTML='<div style="padding:8px 0;color:#718096">Empty &mdash; upload files here</div>';return;}
+      if(!files.length){wwwEl.innerHTML='<div style="padding:8px 0;color:#718096">'+(d.error?d.error:'Empty &mdash; upload files here')+'</div>';return;}
       wwwEl.innerHTML=files.map(function(f){return fileRow(f,false);}).join('');
-    }).catch(function(){wwwEl.innerHTML='<span class="err">Error</span>';});
+    }).catch(function(){wwwEl.innerHTML='<span class="err">Error loading /www</span>';});
 
   // Load root /
   fetch('/api/filelist?storage=internal&dir=/')
@@ -249,7 +268,7 @@ function loadFiles(){
       var hasLegacy=files.some(function(f){return LEGACY.indexOf(f.path)>=0;});
       warnEl.style.display=hasLegacy?'block':'none';
       rootEl.innerHTML=files.map(function(f){return fileRow(f,false);}).join('');
-    }).catch(function(){rootEl.innerHTML='<span class="err">Error</span>';});
+    }).catch(function(){rootEl.innerHTML='<span class="err">Error loading root</span>';});
 }
 
 function delFile(path){
@@ -301,6 +320,10 @@ static String getMime(const String& path) {
 // ============================================================================
 static void scanDir(fs::FS& fs, const String& dir, JsonArray& arr,
                     const String& filter, bool recursive) {
+    if (!fs.exists(dir)) {
+        Serial.printf("scanDir: %s does not exist\n", dir.c_str());
+        return;
+    }
     File d = fs.open(dir);
     if (!d || !d.isDirectory()) return;
     while (File entry = d.openNextFile()) {
@@ -852,6 +875,19 @@ void setupWebServer() {
         r->send(200, "application/json", "{\"ok\":true}");
         shouldRestart = true;
         restartTimer  = millis();
+    });
+
+    // /format_fs
+    server.on("/format_fs", HTTP_POST, [](AsyncWebServerRequest *r) {
+        Serial.println("Formatting LittleFS requested...");
+        bool ok = LittleFS.format();
+        if (ok) {
+            r->send(200, "application/json", "{\"ok\":true}");
+            shouldRestart = true;
+            restartTimer  = millis();
+        } else {
+            r->send(500, "application/json", "{\"ok\":false,\"error\":\"Format failed\"}");
+        }
     });
 
     // =========================================================================
