@@ -1175,7 +1175,7 @@ void setupWebServer() {
     // =========================================================================
     // STATIC FILE FALLBACK (not found handler)
     // =========================================================================
-    server.onNotFound([](AsyncWebServerRequest *r) {
+    server.onNotFound([uiReady](AsyncWebServerRequest *r) {
         String path = r->url();
 
         // /www/* is handled by serveStatic. If it reaches here in failsafe mode,
