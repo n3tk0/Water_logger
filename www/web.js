@@ -218,6 +218,17 @@ function showMsg(containerId, html, autoClear) {
     if (el) { el.innerHTML = html; if (autoClear) setTimeout(function(){el.innerHTML='';}, 4000); }
 }
 
+// Map subpage name → msg container id
+var PAGE_MSG_IDS = {
+    'settings_device':     'sd-msg',
+    'settings_flowmeter':  'sf-msg',
+    'settings_hardware':   'hw-msg',
+    'settings_theme':      'th-msg',
+    'settings_network':    'net-msg',
+    'settings_time':       'time-msg',
+    'settings_datalog':    'dl-msg'
+};
+
 // Generic save via XHR with FormData
 function settingsSave(ev, url, form, restart) {
     if (ev) ev.preventDefault();
@@ -228,9 +239,14 @@ function settingsSave(ev, url, form, restart) {
         if (restart) return; // page will auto-reload/redirect from server
         try {
             var r = JSON.parse(xhr.responseText);
-            if (r.ok) showMsg(currentPage.replace('settings_','') + '-msg',
-                "<div class='alert alert-success'>✅ Saved</div>", true);
+            var msgId = PAGE_MSG_IDS[currentPage] || (currentPage.replace('settings_','') + '-msg');
+            if (r.ok) showMsg(msgId, "<div class='alert alert-success'>✅ Saved</div>", true);
+            else showMsg(msgId, "<div class='alert alert-error'>❌ " + (r.error || 'Save failed') + "</div>", true);
         } catch(e) {}
+    };
+    xhr.onerror = function() {
+        var msgId = PAGE_MSG_IDS[currentPage] || (currentPage.replace('settings_','') + '-msg');
+        showMsg(msgId, "<div class='alert alert-error'>❌ Network error</div>", true);
     };
     xhr.send(fd);
 }
@@ -727,7 +743,7 @@ function changelogLoad() {
             if (el) el.innerHTML = html;
         })
         .catch(function() {
-            if (el) el.innerHTML = "<div class='alert alert-warning'>Changelog not found. Upload /changelog.txt</div>";
+            if (el) el.innerHTML = "<div class='alert alert-warning'>Changelog not found. Upload /www/changelog.txt</div>";
         });
 }
 

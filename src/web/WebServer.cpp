@@ -128,7 +128,7 @@ input[type=text]{width:100%;padding:7px 11px;border:1px solid #e2e8f0;border-rad
       <div class="drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
         <input type="file" id="fileInput" multiple>
         &#x2B06; <strong>Click or drag files here</strong>
-        <p>index.html &bull; web.js &bull; style.css &bull; images &bull; chart.min.js &bull; etc.</p>
+        <p>index.html &bull; web.js &bull; style.css &bull; changelog.txt &bull; chart.min.js &bull; etc.</p>
       </div>
       <progress id="prog" value="0" max="100"></progress>
       <div class="msg inf" id="uploadMsg"></div>
@@ -602,10 +602,12 @@ void setupWebServer() {
     // API: CHANGELOG  (always LittleFS)
     // =========================================================================
     server.on("/api/changelog", HTTP_GET, [](AsyncWebServerRequest *r) {
-        if (LittleFS.exists("/changelog.txt"))
-            r->send(LittleFS, "/changelog.txt", "text/plain");
+        if (LittleFS.exists("/www/changelog.txt"))
+            r->send(LittleFS, "/www/changelog.txt", "text/plain");
+        else if (LittleFS.exists("/changelog.txt"))
+            r->send(LittleFS, "/changelog.txt", "text/plain");   // legacy fallback
         else
-            r->send(404, "text/plain", "Changelog not found. Upload /changelog.txt");
+            r->send(404, "text/plain", "Changelog not found. Upload /www/changelog.txt");
     });
 
     // =========================================================================

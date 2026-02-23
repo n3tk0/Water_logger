@@ -366,6 +366,7 @@
     <h1>📱 Device</h1>
     <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Device</div>
   </div>
+  <div id="sd-msg"></div>
   <form onsubmit="settingsSave(event,'/save_device',this)">
     <div class="card"><div class="card-header">🔛 Identity</div><div class="card-body">
       <div class="form-group"><label class="form-label">Device Name</label><input type="text" name="deviceName" id="sd-devName" maxlength="32" class="form-input"></div>
@@ -415,6 +416,7 @@
     <h1>💧 Flow Meter</h1>
     <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Flow Meter</div>
   </div>
+  <div id="sf-msg"></div>
   <form onsubmit="settingsSave(event,'/save_flowmeter',this)">
     <div class="card"><div class="card-header">🔍 Calibration</div><div class="card-body">
       <div class="form-row">
@@ -450,6 +452,7 @@
     <h1>🔧 Hardware</h1>
     <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Hardware</div>
   </div>
+  <div id="hw-msg"></div>
   <div class="alert alert-warning">⚠️ Changes require device restart to take effect</div>
   <div class="card" id="hw-boardDiagramCard" style="display:none"><div class="card-body text-center">
     <img id="hw-boardDiagram" src="" style="max-width:100%;height:auto">
@@ -519,6 +522,7 @@
     <h1>🎨 Theme</h1>
     <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Theme</div>
   </div>
+  <div id="th-msg"></div>
   <form onsubmit="settingsSave(event,'/save_theme',this)">
     <div class="card"><div class="card-header">🌓 Mode</div><div class="card-body">
       <div class="form-group"><select name="themeMode" id="th-mode" class="form-input form-select">
@@ -587,6 +591,7 @@
     <h1>🌐 Network</h1>
     <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Network</div>
   </div>
+  <div id="net-msg"></div>
   <div class="card"><div class="card-body">
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
       <span><strong>Status:</strong> <span id="net-status">-</span></span>
