@@ -414,8 +414,12 @@ function dbExportCSV() {
 function filesInit() {
     filesEditMode = false;
     currentFilesDir = '/';
-    // Default storage from status
-    currentFilesStorage = (ST.defaultStorageView === 1) ? 'sdcard' : 'internal';
+    // Default storage from status (use hardware.defaultStorageView from /api/status)
+    var hw = ST.hardware || {};
+    currentFilesStorage = (hw.defaultStorageView === 1 || ST.defaultStorageView === 1) ? 'sdcard' : 'internal';
+    // Show loading state immediately
+    var list = document.getElementById('files-list');
+    if (list) list.innerHTML = "<div class='list-item text-muted'>Loading…</div>";
     filesRender();
 }
 
@@ -479,9 +483,9 @@ function filesRender() {
             });
             list.innerHTML = html;
         })
-        .catch(function() {
+        .catch(function(e) {
             var list = document.getElementById('files-list');
-            if (list) list.innerHTML = "<div class='list-item' style='color:red'>Error loading file list</div>";
+            if (list) list.innerHTML = "<div class='list-item' style='color:red'>Error loading file list: " + e + "</div>";
         });
 }
 
@@ -510,7 +514,7 @@ function filesUpload() {
     var pct  = document.getElementById('files-uploadPct');
     if (prog) prog.style.display = 'block';
     function next() {
-        if (i >= files.length) { if(prog) prog.style.display='none'; inp.value=''; filesRender(); return; }
+        if (i >= files.length) { if(prog) prog.style.display='none'; if(bar) bar.style.width='0%'; inp.value=''; filesRender(); return; }
         var fd = new FormData();
         fd.append('file', files[i]);
         fd.append('path', currentFilesDir);
