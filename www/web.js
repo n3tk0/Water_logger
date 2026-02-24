@@ -845,7 +845,13 @@ function changelogToggle() {
     var el = document.getElementById('sd-changelog');
     if (!el) return;
     el.classList.toggle('hidden');
-    if (!changelogLoaded) { changelogLoad(); changelogLoaded = true; }
+    if (!changelogLoaded) { changelogLoad(); }
+}
+
+function changelogClose(ev) {
+    if (ev) ev.stopPropagation();
+    var el = document.getElementById('sd-changelog');
+    if (el) el.classList.add('hidden');
 }
 
 function changelogClose(ev) {
@@ -859,7 +865,13 @@ function changelogLoad() {
     if (!el) return;
 
     fetch('/api/changelog')
-        .then(function(r) { if (!r.ok) throw new Error('not found'); return r.text(); })
+        .then(function(r) {
+            if (r.ok) return r.text();
+            return fetch('/changelog.txt').then(function(r2) {
+                if (!r2.ok) throw new Error('not found');
+                return r2.text();
+            });
+        })
         .then(function(txt) {
             var html = '', lines = txt.trim().split('\n'), inVer = false, currentMarked = false;
             lines.forEach(function(rawLine) {
@@ -890,7 +902,8 @@ function changelogLoad() {
             if (el) el.innerHTML = html;
         })
         .catch(function() {
-            if (el) el.innerHTML = "<div class='alert alert-warning'>Changelog not found. Upload /www/changelog.txt</div>";
+            changelogLoaded = false;
+            if (el) el.innerHTML = "<div style='display:flex;justify-content:flex-end;margin-bottom:.5rem'><button type='button' class='btn btn-secondary btn-sm' onclick='changelogClose(event)'>✖ Close</button></div><div class='alert alert-warning'>Changelog not found. Upload /www/changelog.txt (or /changelog.txt)</div>";
         });
 }
 
