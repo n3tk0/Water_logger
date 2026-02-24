@@ -861,8 +861,7 @@ function changelogLoad() {
     fetch('/api/changelog')
         .then(function(r) { if (!r.ok) throw new Error('not found'); return r.text(); })
         .then(function(txt) {
-            var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:.5rem"><button type="button" class="btn btn-secondary btn-sm" onclick="changelogClose(event)">✖ Close</button></div>';
-            var lines = txt.trim().split('\n'), inVer = false, currentMarked = false, hasEntries = false;
+            var html = '', lines = txt.trim().split('\n'), inVer = false, currentMarked = false;
             lines.forEach(function(rawLine) {
                 var line = rawLine.trim();
                 if (!line) return;
