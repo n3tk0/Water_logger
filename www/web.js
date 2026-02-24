@@ -854,6 +854,12 @@ function changelogClose(ev) {
     if (el) el.classList.add('hidden');
 }
 
+function changelogClose(ev) {
+    if (ev) ev.stopPropagation();
+    var el = document.getElementById('sd-changelog');
+    if (el) el.classList.add('hidden');
+}
+
 function changelogLoad() {
     var el = document.getElementById('sd-changelog');
     if (!el) return;
@@ -867,8 +873,7 @@ function changelogLoad() {
             });
         })
         .then(function(txt) {
-            var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:.5rem"><button type="button" class="btn btn-secondary btn-sm" onclick="changelogClose(event)">✖ Close</button></div>';
-            var lines = txt.trim().split('\n'), inVer = false, currentMarked = false, hasEntries = false;
+            var html = '', lines = txt.trim().split('\n'), inVer = false, currentMarked = false;
             lines.forEach(function(rawLine) {
                 var line = rawLine.trim();
                 if (!line) return;
@@ -894,7 +899,6 @@ function changelogLoad() {
             });
             if (inVer) html += '</ul></div>';
             if (!hasEntries) html += '<div class="text-muted">No entries found.</div>';
-            changelogLoaded = true;
             if (el) el.innerHTML = html;
         })
         .catch(function() {
