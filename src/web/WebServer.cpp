@@ -215,7 +215,6 @@ function fmtBytes(b){
 
 function fileRow(f){
   var isLeg = LEGACY.indexOf(f.path)>=0;
-  var sp = f.path.replace(/'/g,"\\\'");
   return '<div class="file-row"'+(isLeg?' style="background:#fff8e1"':'')+'>'+
     '<span class="fname">'+(isLeg?'&#x26A0;&#xFE0F; ':'&#x1F4C4; ')+f.path+
     (isLeg?' <span style="color:#e67e22;font-size:.75rem">[LEGACY - DELETE]</span>':'')+
@@ -223,9 +222,10 @@ function fileRow(f){
     '<span class="fsize">'+fmtBytes(f.size)+'</span>'+
     '<span class="acts">'+
     '<a href="/download?file='+encodeURIComponent(f.path)+'&storage=internal" class="btn btn-sm btn-primary">&#x1F4E5;</a> '+
-    '<button class="btn btn-sm btn-danger" onclick="delFile(\\\'' +sp+ '\\\')">&#x1F5D1;</button>'+
+    '<button class="btn btn-sm btn-danger" onclick="delFile('+JSON.stringify(f.path)+')">&#x1F5D1;</button>'+
     '</span></div>';
 }
+
 
 function loadFiles(){
   var wwwEl=document.getElementById('wwwList');
