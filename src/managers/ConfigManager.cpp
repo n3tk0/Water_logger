@@ -167,88 +167,140 @@ void migrateConfig(uint8_t fromVersion) {
 }
 
 bool loadConfig() {
-    // Explicitly using "spiffs" label for maximum compatibility on ESP32
+    // ── Mount LittleFS ────────────────────────────────────────────────────────
     if (!LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
-        DBGLN("LittleFS mount failed (loadConfig)");
+        Serial.println("[CFG] LittleFS mount failed – using hardcoded defaults");
         loadDefaultConfig();
         return false;
     }
+
+    // ── Open config file ──────────────────────────────────────────────────────
     File f = LittleFS.open(CONFIG_FILE, "r");
-    if (!f) {
-        DBGLN("No config file, loading defaults");
+    if (!f || f.isDirectory()) {
+        Serial.println("[CFG] No config file – using hardcoded defaults");
+        if (f) f.close();
         loadDefaultConfig();
         return false;
     }
 
     size_t fileSize = f.size();
 
-    if (fileSize == sizeof(DeviceConfig)) {
-        size_t readBytes = f.read((uint8_t*)&config, sizeof(DeviceConfig));
-        f.close();
-        if (readBytes != sizeof(DeviceConfig) || config.magic != CONFIG_STRUCT_MAGIC) {
-            DBGLN("Invalid config, loading defaults");
-            loadDefaultConfig();
-            return false;
-        }
-    } else if (fileSize > 0 && fileSize < sizeof(DeviceConfig)) {
-        // Struct migration from older version
-        uint8_t* rawBuf = (uint8_t*)malloc(fileSize);
-        if (!rawBuf) { f.close(); loadDefaultConfig(); return false; }
-
-        size_t readBytes = f.read(rawBuf, fileSize);
-        f.close();
-
-        uint32_t fileMagic;
-        memcpy(&fileMagic, rawBuf, sizeof(uint32_t));
-        if (readBytes != fileSize || fileMagic != CONFIG_STRUCT_MAGIC) {
-            free(rawBuf);
-            loadDefaultConfig();
-            return false;
-        }
-
-        loadDefaultConfig();
-
-        size_t datalogOffset = offsetof(DeviceConfig, datalog);
-        size_t headerSize    = offsetof(DeviceConfig, theme);
-        memcpy(&config,       rawBuf,                  headerSize);
-        memcpy(&config.theme, rawBuf + offsetof(DeviceConfig, theme), sizeof(ThemeConfig));
-
-        size_t commonDatalogSize = offsetof(DatalogConfig, postCorrectionEnabled);
-        memcpy(&config.datalog, rawBuf + datalogOffset, commonDatalogSize);
-
-        size_t sizeDiff          = sizeof(DeviceConfig) - fileSize;
-        size_t oldDatalogTotal   = sizeof(DatalogConfig) - sizeDiff;
-        size_t oldFlowOffset     = datalogOffset + oldDatalogTotal;
-        if (oldFlowOffset + sizeof(FlowMeterConfig) <= fileSize)
-            memcpy(&config.flowMeter, rawBuf + oldFlowOffset, sizeof(FlowMeterConfig));
-
-        size_t oldHWOffset = oldFlowOffset + sizeof(FlowMeterConfig);
-        if (oldHWOffset + sizeof(HardwareConfig) <= fileSize)
-            memcpy(&config.hardware, rawBuf + oldHWOffset, sizeof(HardwareConfig));
-
-        size_t oldNetOffset = oldHWOffset + sizeof(HardwareConfig);
-        size_t netAvail     = (oldNetOffset < fileSize) ? (fileSize - oldNetOffset) : 0;
-        if (netAvail > 0) {
-            size_t copySize = (netAvail < sizeof(NetworkConfig)) ? netAvail : sizeof(NetworkConfig);
-            memcpy(&config.network, rawBuf + oldNetOffset, copySize);
-        }
-
-        free(rawBuf);
-        DBGF("Config migrated: %d -> %d bytes\n", fileSize, sizeof(DeviceConfig));
-    } else {
+    // ── Guard: file must be non-empty and not absurdly large ─────────────────
+    if (fileSize == 0 || fileSize > sizeof(DeviceConfig) * 2) {
+        Serial.printf("[CFG] Bad file size %u – using hardcoded defaults\n", fileSize);
         f.close();
         loadDefaultConfig();
         return false;
     }
 
+    // ── Exact-size read (current struct version) ──────────────────────────────
+    if (fileSize == sizeof(DeviceConfig)) {
+        DeviceConfig tmp;
+        size_t got = f.read((uint8_t*)&tmp, sizeof(DeviceConfig));
+        f.close();
+
+        if (got != sizeof(DeviceConfig) || tmp.magic != CONFIG_STRUCT_MAGIC) {
+            Serial.println("[CFG] Magic mismatch / short read – using hardcoded defaults");
+            loadDefaultConfig();
+            return false;
+        }
+        memcpy(&config, &tmp, sizeof(DeviceConfig));
+    }
+
+    // ── Smaller file: migration from older struct ─────────────────────────────
+    else if (fileSize < sizeof(DeviceConfig)) {
+        uint8_t* rawBuf = (uint8_t*)malloc(fileSize);
+        if (!rawBuf) {
+            Serial.println("[CFG] malloc failed – using hardcoded defaults");
+            f.close();
+            loadDefaultConfig();
+            return false;
+        }
+
+        size_t got = f.read(rawBuf, fileSize);
+        f.close();
+
+        uint32_t fileMagic = 0;
+        if (got >= sizeof(uint32_t)) memcpy(&fileMagic, rawBuf, sizeof(uint32_t));
+
+        if (got != fileSize || fileMagic != CONFIG_STRUCT_MAGIC) {
+            free(rawBuf);
+            Serial.println("[CFG] Corrupt file – using hardcoded defaults");
+            loadDefaultConfig();
+            return false;
+        }
+
+        // Start from safe defaults then overlay whatever bytes we have
+        loadDefaultConfig();
+
+        size_t headerSize      = offsetof(DeviceConfig, theme);
+        size_t datalogOffset   = offsetof(DeviceConfig, datalog);
+        size_t commonDatalogSz = offsetof(DatalogConfig, postCorrectionEnabled);
+
+        if (headerSize <= fileSize)
+            memcpy(&config, rawBuf, headerSize);
+
+        if (offsetof(DeviceConfig, theme) + sizeof(ThemeConfig) <= fileSize)
+            memcpy(&config.theme, rawBuf + offsetof(DeviceConfig, theme), sizeof(ThemeConfig));
+
+        if (datalogOffset + commonDatalogSz <= fileSize)
+            memcpy(&config.datalog, rawBuf + datalogOffset, commonDatalogSz);
+
+        // FlowMeter
+        size_t sizeDiff        = sizeof(DeviceConfig) - fileSize;
+        size_t oldDatalogTotal = sizeof(DatalogConfig) - sizeDiff;
+        size_t oldFlowOffset   = datalogOffset + oldDatalogTotal;
+        if (oldFlowOffset + sizeof(FlowMeterConfig) <= fileSize)
+            memcpy(&config.flowMeter, rawBuf + oldFlowOffset, sizeof(FlowMeterConfig));
+
+        // Hardware
+        size_t oldHWOffset = oldFlowOffset + sizeof(FlowMeterConfig);
+        if (oldHWOffset + sizeof(HardwareConfig) <= fileSize)
+            memcpy(&config.hardware, rawBuf + oldHWOffset, sizeof(HardwareConfig));
+
+        // Network
+        size_t oldNetOffset = oldHWOffset + sizeof(HardwareConfig);
+        if (oldNetOffset < fileSize) {
+            size_t avail = fileSize - oldNetOffset;
+            size_t copy  = avail < sizeof(NetworkConfig) ? avail : sizeof(NetworkConfig);
+            memcpy(&config.network, rawBuf + oldNetOffset, copy);
+        }
+
+        free(rawBuf);
+        Serial.printf("[CFG] Migrated %u -> %u bytes\n",
+                      (unsigned)fileSize, (unsigned)sizeof(DeviceConfig));
+    }
+
+    else {
+        // fileSize > sizeof(DeviceConfig) — shouldn't happen, treat as corrupt
+        f.close();
+        Serial.println("[CFG] Oversized config file – using hardcoded defaults");
+        loadDefaultConfig();
+        return false;
+    }
+
+    // ── Version migration ─────────────────────────────────────────────────────
     if (config.version < CONFIG_VERSION) migrateConfig(config.version);
 
+    // ── Sanitise wake pins ────────────────────────────────────────────────────
     if (sanitizeWakeConfig()) {
-        DBGLN("Config wake pins invalid/duplicate -> restored defaults");
+        Serial.println("[CFG] Wake pins invalid/duplicate – restored defaults");
         saveConfig();
     }
 
-    DBGF("Config loaded v%d\n", config.version);
+    // ── Null-termination guard on all critical char[] fields ─────────────────
+    config.deviceName[sizeof(config.deviceName) - 1]                   = '\0';
+    config.deviceId[sizeof(config.deviceId) - 1]                       = '\0';
+    config.datalog.currentFile[sizeof(config.datalog.currentFile) - 1] = '\0';
+    config.datalog.prefix[sizeof(config.datalog.prefix) - 1]           = '\0';
+    config.datalog.folder[sizeof(config.datalog.folder) - 1]           = '\0';
+    config.network.apSSID[sizeof(config.network.apSSID) - 1]           = '\0';
+    config.network.apPassword[sizeof(config.network.apPassword) - 1]   = '\0';
+    config.network.clientSSID[sizeof(config.network.clientSSID) - 1]   = '\0';
+    config.network.ntpServer[sizeof(config.network.ntpServer) - 1]     = '\0';
+    config.theme.primaryColor[sizeof(config.theme.primaryColor) - 1]   = '\0';
+
+    Serial.printf("[CFG] Loaded v%u OK\n", config.version);
     return true;
 }
 

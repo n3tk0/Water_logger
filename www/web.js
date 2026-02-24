@@ -841,28 +841,44 @@ function regenDevId() {
         .catch(function(e) { alert('Error: ' + e); });
 }
 
+function toggleManualId(id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = !el.disabled;
+}
+
+// ============================================================================
+// ══ CHANGELOG ══
+// ============================================================================
 function changelogToggle() {
     var el = document.getElementById('sd-changelog');
     if (!el) return;
-    el.classList.toggle('hidden');
-    if (!changelogLoaded) { changelogLoad(); }
+
+    var isHidden = el.classList.contains('hidden');
+    if (isHidden) {
+        el.classList.remove('hidden');
+        if (!changelogLoaded) changelogLoad();
+    } else {
+        el.classList.add('hidden');
+    }
+
+    // Rotate chevron indicator
+    var chev = document.getElementById('sd-changelogChevron');
+    if (chev) chev.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
 }
 
 function changelogClose(ev) {
     if (ev) ev.stopPropagation();
     var el = document.getElementById('sd-changelog');
     if (el) el.classList.add('hidden');
-}
-
-function changelogClose(ev) {
-    if (ev) ev.stopPropagation();
-    var el = document.getElementById('sd-changelog');
-    if (el) el.classList.add('hidden');
+    var chev = document.getElementById('sd-changelogChevron');
+    if (chev) chev.style.transform = '';
 }
 
 function changelogLoad() {
     var el = document.getElementById('sd-changelog');
     if (!el) return;
+
+    el.innerHTML = "<div class='text-muted' style='padding:.5rem'>Loading…</div>";
 
     fetch('/api/changelog')
         .then(function(r) {
@@ -873,37 +889,50 @@ function changelogLoad() {
             });
         })
         .then(function(txt) {
-            var html = '', lines = txt.trim().split('\n'), inVer = false, currentMarked = false;
+            changelogLoaded = true;                        // FIX: mark loaded so re-open skips fetch
+            var html = '';
+            var lines = txt.trim().split('\n');
+            var inVer = false;
+            var currentMarked = false;
+            var hasEntries = false;                        // FIX: declared as local var
+
             lines.forEach(function(rawLine) {
                 var line = rawLine.trim();
                 if (!line) return;
 
-                if (line.startsWith('##')) {
+                if (line.indexOf('##') === 0) {
                     hasEntries = true;
                     if (inVer) html += '</ul></div>';
                     var ver = line.substring(2).trim();
-                    var isCur = ver.indexOf('Current') >= 0;
-                    if (!isCur && !currentMarked) isCur = true;
+                    // First ## block is treated as current version
+                    var isCur = !currentMarked;
                     if (isCur) currentMarked = true;
 
-                    html += '<div style="margin-top:.5rem;padding:.5rem;' +
+                    html += '<div style="margin-top:.5rem;padding:.5rem;border-radius:4px;' +
                         (isCur
                             ? 'background:var(--primary);color:#fff'
                             : 'background:var(--border);color:var(--text-muted)') +
-                        ';border-radius:4px">';
-                    html += '<strong>' + ver + '</strong><ul style="margin:.5rem 0 0 1rem;padding:0;font-size:.9rem">';
+                        '">';
+                    html += '<strong>' + ver + '</strong>';
+                    html += '<ul style="margin:.5rem 0 0 1rem;padding:0;font-size:.9rem">';
                     inVer = true;
-                } else if (line.startsWith('-') && inVer) {
+                } else if (line.indexOf('-') === 0 && inVer) {
                     html += '<li>' + line.substring(1).trim() + '</li>';
                 }
             });
+
             if (inVer) html += '</ul></div>';
-            if (!hasEntries) html += '<div class="text-muted">No entries found.</div>';
-            if (el) el.innerHTML = html;
+            if (!hasEntries) html += "<div class='text-muted'>No entries found.</div>";
+            el.innerHTML = html;
         })
         .catch(function() {
-            changelogLoaded = false;
-            if (el) el.innerHTML = "<div style='display:flex;justify-content:flex-end;margin-bottom:.5rem'><button type='button' class='btn btn-secondary btn-sm' onclick='changelogClose(event)'>✖ Close</button></div><div class='alert alert-warning'>Changelog not found. Upload /www/changelog.txt (or /changelog.txt)</div>";
+            changelogLoaded = false;                       // allow retry on next open
+            el.innerHTML =
+                "<div style='display:flex;justify-content:flex-end;margin-bottom:.5rem'>" +
+                "<button type='button' class='btn btn-secondary btn-sm' " +
+                "onclick='changelogClose(event)'>✖ Close</button></div>" +
+                "<div class='alert alert-warning'>Changelog not found. " +
+                "Upload <code>/www/changelog.txt</code></div>";
         });
 }
 
@@ -1210,8 +1239,6 @@ function dlInit() {
             var msGrp = document.getElementById('dl-maxSizeGroup');
             if (msGrp) msGrp.style.display = dl.rotation==4 ? 'block':'none';
             setVal('dl-maxSize',   dl.maxSizeKB || 500);
-            // timestampFilename and includeDeviceId are not in /export_settings
-            // They will keep their HTML default (unchecked) — saved correctly on next save
             setChk('dl-tsFile',    dl.timestampFilename || false);
             setChk('dl-devId',     dl.includeDeviceId   || false);
             setVal('dl-date',      dl.dateFormat  !== undefined ? dl.dateFormat  : 0);

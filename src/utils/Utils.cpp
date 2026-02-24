@@ -1,17 +1,13 @@
 #include "Utils.h"
 #include <FS.h>
 
+// getVersionString() is defined inline in Config.h – removed from here.
+
 String formatFileSize(uint64_t bytes) {
     if (bytes >= 1073741824ULL) return String(bytes / 1073741824.0, 2) + " GB";
     if (bytes >= 1048576)       return String(bytes / 1048576.0, 1) + " MB";
     if (bytes >= 1024)          return String(bytes / 1024.0, 1) + " KB";
     return String((unsigned long)bytes) + " B";
-}
-
-String getVersionString() {
-    char buf[16];
-    snprintf(buf, sizeof(buf), "v%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
-    return String(buf);
 }
 
 String buildPath(const String& dir, const String& name) {

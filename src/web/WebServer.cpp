@@ -222,10 +222,9 @@ function fileRow(f){
     '<span class="fsize">'+fmtBytes(f.size)+'</span>'+
     '<span class="acts">'+
     '<a href="/download?file='+encodeURIComponent(f.path)+'&storage=internal" class="btn btn-sm btn-primary">&#x1F4E5;</a> '+
-    '<button class="btn btn-sm btn-danger" onclick="delFile('+JSON.stringify(f.path)+')">&#x1F5D1;</button>'+
+    '<button class="btn btn-sm btn-danger" data-path="'+f.path+'" onclick="delFile(this.dataset.path)">&#x1F5D1;</button>'+
     '</span></div>';
 }
-
 
 function loadFiles(){
   var wwwEl=document.getElementById('wwwList');
@@ -233,7 +232,6 @@ function loadFiles(){
   var warnEl=document.getElementById('legacyWarn');
   wwwEl.innerHTML='Loading&#x2026;'; rootEl.innerHTML='Loading&#x2026;';
 
-  // Load /www/
   fetch('/api/filelist?storage=internal&dir=/www/')
     .then(function(r){return r.json();})
     .then(function(d){
@@ -242,7 +240,6 @@ function loadFiles(){
       wwwEl.innerHTML=files.map(function(f){return fileRow(f,false);}).join('');
     }).catch(function(){wwwEl.innerHTML='<span class="err">Error</span>';});
 
-  // Load root /
   fetch('/api/filelist?storage=internal&dir=/')
     .then(function(r){return r.json();})
     .then(function(d){
@@ -307,16 +304,13 @@ static String getMime(const String& path) {
 // ============================================================================
 static void scanDir(fs::FS& fs, const String& dir, JsonArray& arr,
                     const String& filter, bool recursive) {
-    // Normalise dir: no trailing slash except root
     String normDir = dir;
     while (normDir.length() > 1 && normDir.endsWith("/")) normDir.remove(normDir.length()-1);
     File d = fs.open(normDir);
     if (!d || !d.isDirectory()) return;
     while (File entry = d.openNextFile()) {
-        // entry.name() returns full path on esp-arduino >=2.x, filename only on older
         String name = String(entry.name());
         if (name.startsWith("/")) {
-            // full path returned — extract just the filename component
             int slash = name.lastIndexOf('/');
             name = (slash >= 0) ? name.substring(slash + 1) : name;
         }
@@ -353,19 +347,13 @@ static void scanDir(fs::FS& fs, const String& dir, JsonArray& arr,
 void setupWebServer() {
     Serial.println("Setting up web server...");
 
-    // ── Static file serving from LittleFS /www/ ──────────────────────────────
     bool uiReady = LittleFS.exists("/www/index.html");
 
     if (uiReady) {
         server.serveStatic("/", LittleFS, "/www/").setDefaultFile("index.html");
         Serial.println("Web UI: serving from /www/");
     } else {
-        // Failsafe: serve embedded minimal page.
-        // Root "/" is handled here. If the user uploads index.html during this session,
-        // the onNotFound handler will serve it for all other paths (/www/index.html).
-        // A device restart is needed to switch serveStatic on for "/" itself.
         server.on("/", HTTP_GET, [](AsyncWebServerRequest *r) {
-            // Check live — if user just uploaded index.html, serve it immediately
             if (littleFsAvailable && LittleFS.exists("/www/index.html")) {
                 r->send(LittleFS, "/www/index.html", "text/html");
                 return;
@@ -375,15 +363,10 @@ void setupWebServer() {
         Serial.println("Web UI: FAILSAFE mode (upload /www/index.html to restore)");
     }
 
-
-    // /setup – always serves failsafe UI regardless of index.html state
-    // Provides a safe recovery path even when /www/index.html is broken/corrupt.
-    // Accessible at http://<device-ip>/setup at any time.
     server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *r) {
         r->send_P(200, "text/html", FAILSAFE_HTML);
     });
 
-    // ── Redirect /dashboard /files /live /settings to SPA ────────────────────
     auto spaRedirect = [](AsyncWebServerRequest *r) { r->redirect("/"); };
     server.on("/dashboard",          HTTP_GET, spaRedirect);
     server.on("/files",              HTTP_GET, spaRedirect);
@@ -398,40 +381,54 @@ void setupWebServer() {
     server.on("/settings_datalog",   HTTP_GET, spaRedirect);
 
     // =========================================================================
-    // API: STATUS  (used by SPA bootstrap)
+    // API: STATUS
     // =========================================================================
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *r) {
         StaticJsonDocument<1024> doc;
-        doc["device"]  = config.deviceName;
+
+        // ── Identity ──────────────────────────────────────────────────────────
+        doc["device"]   = config.deviceName;
         doc["deviceId"] = config.deviceId;
-        doc["version"] = getVersionString();
+        doc["version"]  = getVersionString();   // inline from Config.h
+
+        // ── Time / Network ────────────────────────────────────────────────────
         doc["time"]    = getRtcDateTimeString();
         doc["network"] = getNetworkDisplay();
-        doc["ip"]      = currentIPAddress;
-        doc["boot"]    = bootCount;
-        doc["heap"]    = ESP.getFreeHeap();
-        doc["heapTotal"] = ESP.getHeapSize();
-        doc["chip"]    = ESP.getChipModel();
-        doc["cpu"]     = getCpuFrequencyMhz();
-        doc["mode"]    = getModeDisplay();
-        doc["wifi"]    = wifiConnectedAsClient ? "client" : "ap";
+
+        // ── IP: explicit WiFi API, correct for AP and STA modes ───────────────
+        doc["ip"] = wifiConnectedAsClient
+                    ? WiFi.localIP().toString()
+                    : WiFi.softAPIP().toString();
+
+        // ── Runtime metrics ───────────────────────────────────────────────────
+        doc["boot"]       = bootCount;
+        doc["heap"]       = ESP.getFreeHeap();
+        doc["heapTotal"]  = ESP.getHeapSize();
+        doc["heapPct"]    = (int)(ESP.getFreeHeap() * 100UL / ESP.getHeapSize());
+        doc["chip"]       = ESP.getChipModel();
+        doc["cpu"]        = getCpuFrequencyMhz();
+        doc["mode"]       = getModeDisplay();
+        doc["wifi"]       = wifiConnectedAsClient ? "client" : "ap";
         doc["freeSketch"] = ESP.getFreeSketchSpace();
 
-        // Storage
+        // ── Storage ───────────────────────────────────────────────────────────
         uint64_t used = 0, total = 0; int pct = 0;
         getStorageInfo(used, total, pct);
-        doc["fsUsed"]  = (uint32_t)used;
-        doc["fsTotal"] = (uint32_t)total;
-        doc["fsPct"]   = pct;
+        doc["fsUsed"]             = (uint32_t)used;
+        doc["fsTotal"]            = (uint32_t)total;
+        doc["fsPct"]              = pct;
         doc["defaultStorageView"] = config.hardware.defaultStorageView;
 
-        // RTC state
+        // ── RTC (null-safe) ───────────────────────────────────────────────────
         if (Rtc) {
             doc["rtcProtected"] = Rtc->GetIsWriteProtected();
             doc["rtcRunning"]   = Rtc->GetIsRunning();
+        } else {
+            doc["rtcProtected"] = false;
+            doc["rtcRunning"]   = false;
         }
 
-        // Theme (nested object for SPA)
+        // ── Theme (nested) ────────────────────────────────────────────────────
         JsonObject th = doc.createNestedObject("theme");
         th["mode"]              = (int)config.theme.mode;
         th["primaryColor"]      = config.theme.primaryColor;
@@ -506,6 +503,11 @@ void setupWebServer() {
         doc["fsUsed"]  = (uint32_t)used;
         doc["fsTotal"] = (uint32_t)total;
 
+        // IP live update
+        doc["ip"] = wifiConnectedAsClient
+                    ? WiFi.localIP().toString()
+                    : WiFi.softAPIP().toString();
+
         sendJsonResponse(r, doc);
     });
 
@@ -578,7 +580,7 @@ void setupWebServer() {
     });
 
     // =========================================================================
-    // API: FILE LIST  (unified, replaces /api/stats file list)
+    // API: FILE LIST
     // =========================================================================
     server.on("/api/filelist", HTTP_GET, [](AsyncWebServerRequest *r) {
         StaticJsonDocument<4096> doc;
@@ -590,14 +592,12 @@ void setupWebServer() {
         bool recursive = r->hasParam("recursive");
 
         fs::FS* targetFS = nullptr;
-        if (storage == "sdcard" && sdAvailable)           targetFS = &SD;
+        if (storage == "sdcard" && sdAvailable)              targetFS = &SD;
         else if (storage == "internal" && littleFsAvailable) targetFS = &LittleFS;
-        else if (littleFsAvailable)                        targetFS = &LittleFS;
+        else if (littleFsAvailable)                          targetFS = &LittleFS;
 
         if (targetFS) {
             scanDir(*targetFS, dir, files, filter, recursive);
-
-            // Storage stats
             uint64_t used = 0, total = 0; int pct = 0;
             getStorageInfo(used, total, pct, storage);
             doc["used"]    = (uint32_t)used;
@@ -612,13 +612,13 @@ void setupWebServer() {
     });
 
     // =========================================================================
-    // API: CHANGELOG  (always LittleFS)
+    // API: CHANGELOG
     // =========================================================================
     server.on("/api/changelog", HTTP_GET, [](AsyncWebServerRequest *r) {
         if (LittleFS.exists("/www/changelog.txt"))
             r->send(LittleFS, "/www/changelog.txt", "text/plain");
         else if (LittleFS.exists("/changelog.txt"))
-            r->send(LittleFS, "/changelog.txt", "text/plain");   // legacy fallback
+            r->send(LittleFS, "/changelog.txt", "text/plain");
         else
             r->send(404, "text/plain", "Changelog not found. Upload /www/changelog.txt");
     });
@@ -638,7 +638,6 @@ void setupWebServer() {
     // SAVE ENDPOINTS
     // =========================================================================
 
-    // /save_device
     server.on("/save_device", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("deviceName", true))
             strncpy(config.deviceName, r->getParam("deviceName", true)->value().c_str(), 32);
@@ -654,7 +653,6 @@ void setupWebServer() {
         r->send(200, "application/json", "{\"ok\":true}");
     });
 
-    // /save_flowmeter
     server.on("/save_flowmeter", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("pulsesPerLiter", true))
             config.flowMeter.pulsesPerLiter = r->getParam("pulsesPerLiter", true)->value().toFloat();
@@ -672,23 +670,22 @@ void setupWebServer() {
         r->send(200, "application/json", "{\"ok\":true}");
     });
 
-    // /save_hardware  → restart required
     server.on("/save_hardware", HTTP_POST, [](AsyncWebServerRequest *r) {
-        if (r->hasParam("storageType", true))    config.hardware.storageType   = (StorageType)r->getParam("storageType", true)->value().toInt();
-        if (r->hasParam("wakeupMode", true))     config.hardware.wakeupMode    = (WakeupMode)r->getParam("wakeupMode", true)->value().toInt();
+        if (r->hasParam("storageType", true))    config.hardware.storageType    = (StorageType)r->getParam("storageType", true)->value().toInt();
+        if (r->hasParam("wakeupMode", true))     config.hardware.wakeupMode     = (WakeupMode)r->getParam("wakeupMode", true)->value().toInt();
         if (r->hasParam("pinWifiTrigger", true)) config.hardware.pinWifiTrigger = r->getParam("pinWifiTrigger", true)->value().toInt();
-        if (r->hasParam("pinWakeupFF", true))    config.hardware.pinWakeupFF   = r->getParam("pinWakeupFF", true)->value().toInt();
-        if (r->hasParam("pinWakeupPF", true))    config.hardware.pinWakeupPF   = r->getParam("pinWakeupPF", true)->value().toInt();
-        if (r->hasParam("pinFlowSensor", true))  config.hardware.pinFlowSensor = r->getParam("pinFlowSensor", true)->value().toInt();
-        if (r->hasParam("pinRtcCE", true))       config.hardware.pinRtcCE      = r->getParam("pinRtcCE", true)->value().toInt();
-        if (r->hasParam("pinRtcIO", true))       config.hardware.pinRtcIO      = r->getParam("pinRtcIO", true)->value().toInt();
-        if (r->hasParam("pinRtcSCLK", true))     config.hardware.pinRtcSCLK    = r->getParam("pinRtcSCLK", true)->value().toInt();
-        if (r->hasParam("pinSdCS", true))        config.hardware.pinSdCS       = r->getParam("pinSdCS", true)->value().toInt();
-        if (r->hasParam("pinSdMOSI", true))      config.hardware.pinSdMOSI     = r->getParam("pinSdMOSI", true)->value().toInt();
-        if (r->hasParam("pinSdMISO", true))      config.hardware.pinSdMISO     = r->getParam("pinSdMISO", true)->value().toInt();
-        if (r->hasParam("pinSdSCK", true))       config.hardware.pinSdSCK      = r->getParam("pinSdSCK", true)->value().toInt();
-        if (r->hasParam("cpuFreqMHz", true))     config.hardware.cpuFreqMHz    = r->getParam("cpuFreqMHz", true)->value().toInt();
-        if (r->hasParam("debounceMs", true))     config.hardware.debounceMs    = constrain(r->getParam("debounceMs", true)->value().toInt(), 20, 500);
+        if (r->hasParam("pinWakeupFF", true))    config.hardware.pinWakeupFF    = r->getParam("pinWakeupFF", true)->value().toInt();
+        if (r->hasParam("pinWakeupPF", true))    config.hardware.pinWakeupPF    = r->getParam("pinWakeupPF", true)->value().toInt();
+        if (r->hasParam("pinFlowSensor", true))  config.hardware.pinFlowSensor  = r->getParam("pinFlowSensor", true)->value().toInt();
+        if (r->hasParam("pinRtcCE", true))       config.hardware.pinRtcCE       = r->getParam("pinRtcCE", true)->value().toInt();
+        if (r->hasParam("pinRtcIO", true))       config.hardware.pinRtcIO       = r->getParam("pinRtcIO", true)->value().toInt();
+        if (r->hasParam("pinRtcSCLK", true))     config.hardware.pinRtcSCLK     = r->getParam("pinRtcSCLK", true)->value().toInt();
+        if (r->hasParam("pinSdCS", true))        config.hardware.pinSdCS        = r->getParam("pinSdCS", true)->value().toInt();
+        if (r->hasParam("pinSdMOSI", true))      config.hardware.pinSdMOSI      = r->getParam("pinSdMOSI", true)->value().toInt();
+        if (r->hasParam("pinSdMISO", true))      config.hardware.pinSdMISO      = r->getParam("pinSdMISO", true)->value().toInt();
+        if (r->hasParam("pinSdSCK", true))       config.hardware.pinSdSCK       = r->getParam("pinSdSCK", true)->value().toInt();
+        if (r->hasParam("cpuFreqMHz", true))     config.hardware.cpuFreqMHz     = r->getParam("cpuFreqMHz", true)->value().toInt();
+        if (r->hasParam("debounceMs", true))     config.hardware.debounceMs     = constrain(r->getParam("debounceMs", true)->value().toInt(), 20, 500);
         saveConfig();
         sendRestartPage(r, "Device is restarting with new hardware settings.");
         safeWiFiShutdown();
@@ -696,7 +693,6 @@ void setupWebServer() {
         ESP.restart();
     });
 
-    // /save_theme
     server.on("/save_theme", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("themeMode", true))        config.theme.mode           = (ThemeMode)r->getParam("themeMode", true)->value().toInt();
         config.theme.showIcons = r->hasParam("showIcons", true);
@@ -721,29 +717,27 @@ void setupWebServer() {
         r->send(200, "application/json", "{\"ok\":true}");
     });
 
-    // /save_datalog
     server.on("/save_datalog", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("currentFile", true))  strncpy(config.datalog.currentFile, r->getParam("currentFile", true)->value().c_str(), 64);
         if (r->hasParam("prefix", true))       strncpy(config.datalog.prefix,      r->getParam("prefix", true)->value().c_str(), 32);
         if (r->hasParam("folder", true))       strncpy(config.datalog.folder,      r->getParam("folder", true)->value().c_str(), 32);
-        if (r->hasParam("rotation", true))     config.datalog.rotation   = (DatalogRotation)r->getParam("rotation", true)->value().toInt();
-        if (r->hasParam("maxSizeKB", true))    config.datalog.maxSizeKB  = r->getParam("maxSizeKB", true)->value().toInt();
+        if (r->hasParam("rotation", true))     config.datalog.rotation    = (DatalogRotation)r->getParam("rotation", true)->value().toInt();
+        if (r->hasParam("maxSizeKB", true))    config.datalog.maxSizeKB   = r->getParam("maxSizeKB", true)->value().toInt();
         config.datalog.timestampFilename   = r->hasParam("timestampFilename", true);
         config.datalog.includeDeviceId     = r->hasParam("includeDeviceId", true);
-        if (r->hasParam("dateFormat", true))   config.datalog.dateFormat  = r->getParam("dateFormat", true)->value().toInt();
-        if (r->hasParam("timeFormat", true))   config.datalog.timeFormat  = r->getParam("timeFormat", true)->value().toInt();
-        if (r->hasParam("endFormat", true))    config.datalog.endFormat   = r->getParam("endFormat", true)->value().toInt();
-        if (r->hasParam("volumeFormat", true)) config.datalog.volumeFormat= r->getParam("volumeFormat", true)->value().toInt();
-        config.datalog.includeBootCount    = r->hasParam("includeBootCount", true) && r->getParam("includeBootCount", true)->value() == "1";
+        if (r->hasParam("dateFormat", true))   config.datalog.dateFormat   = r->getParam("dateFormat", true)->value().toInt();
+        if (r->hasParam("timeFormat", true))   config.datalog.timeFormat   = r->getParam("timeFormat", true)->value().toInt();
+        if (r->hasParam("endFormat", true))    config.datalog.endFormat    = r->getParam("endFormat", true)->value().toInt();
+        if (r->hasParam("volumeFormat", true)) config.datalog.volumeFormat = r->getParam("volumeFormat", true)->value().toInt();
+        config.datalog.includeBootCount    = r->hasParam("includeBootCount", true)    && r->getParam("includeBootCount", true)->value()    == "1";
         config.datalog.includeExtraPresses = r->hasParam("includeExtraPresses", true) && r->getParam("includeExtraPresses", true)->value() == "1";
         config.datalog.postCorrectionEnabled = r->hasParam("postCorrectionEnabled", true);
-        if (r->hasParam("pfToFfThreshold", true))       config.datalog.pfToFfThreshold       = r->getParam("pfToFfThreshold", true)->value().toFloat();
-        if (r->hasParam("ffToPfThreshold", true))       config.datalog.ffToPfThreshold       = r->getParam("ffToPfThreshold", true)->value().toFloat();
-        if (r->hasParam("manualPressThresholdMs", true))config.datalog.manualPressThresholdMs= r->getParam("manualPressThresholdMs", true)->value().toInt();
+        if (r->hasParam("pfToFfThreshold", true))        config.datalog.pfToFfThreshold        = r->getParam("pfToFfThreshold", true)->value().toFloat();
+        if (r->hasParam("ffToPfThreshold", true))        config.datalog.ffToPfThreshold        = r->getParam("ffToPfThreshold", true)->value().toFloat();
+        if (r->hasParam("manualPressThresholdMs", true)) config.datalog.manualPressThresholdMs = r->getParam("manualPressThresholdMs", true)->value().toInt();
 
         saveConfig();
 
-        // Create new log file if requested
         String action = r->hasParam("action", true) ? r->getParam("action", true)->value() : "";
         if (action == "create" && fsAvailable && activeFS) {
             String folder = String(config.datalog.folder);
@@ -779,7 +773,6 @@ void setupWebServer() {
         r->send(200, "application/json", "{\"ok\":true}");
     });
 
-    // /save_network  → restart required
     server.on("/save_network", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("wifiMode", true))       config.network.wifiMode = (WiFiModeType)r->getParam("wifiMode", true)->value().toInt();
         if (r->hasParam("apSSID", true))         strncpy(config.network.apSSID,         r->getParam("apSSID", true)->value().c_str(), 32);
@@ -806,7 +799,6 @@ void setupWebServer() {
         ESP.restart();
     });
 
-    // /save_time
     server.on("/save_time", HTTP_POST, [](AsyncWebServerRequest *r) {
         if (r->hasParam("ntpServer", true)) strncpy(config.network.ntpServer, r->getParam("ntpServer", true)->value().c_str(), 64);
         if (r->hasParam("timezone", true))  config.network.timezone = r->getParam("timezone", true)->value().toInt();
@@ -891,7 +883,6 @@ void setupWebServer() {
     // FILE OPERATIONS
     // =========================================================================
 
-    // /download
     server.on("/download", HTTP_GET, [](AsyncWebServerRequest *r) {
         if (!r->hasParam("file")) { r->send(400, "text/plain", "No file"); return; }
         String path = sanitizeFilename(r->getParam("file")->value());
@@ -909,37 +900,29 @@ void setupWebServer() {
         }
     });
 
-    // /delete
     server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *r) {
         if (!r->hasParam("path")) { r->send(400, "application/json", "{\"ok\":false,\"error\":\"Missing path\"}"); return; }
-
         String path = sanitizePath(r->getParam("path")->value());
         if (path == "/") { r->send(400, "application/json", "{\"ok\":false,\"error\":\"Refusing to delete root\"}"); return; }
-
         String storage = r->hasParam("storage") ? r->getParam("storage")->value() : currentStorageView;
         fs::FS* targetFS = nullptr;
         if (storage == "sdcard" && sdAvailable)              targetFS = &SD;
         else if (storage == "internal" && littleFsAvailable) targetFS = &LittleFS;
         else if (activeFS) targetFS = activeFS;
-
         bool deleted = false;
         if (targetFS && targetFS->exists(path)) {
             File f = targetFS->open(path, FILE_READ);
             bool isDir = f && f.isDirectory();
             if (f) f.close();
-
-            deleted = isDir ? deleteRecursive(*targetFS, path)
-                            : targetFS->remove(path);
+            deleted = isDir ? deleteRecursive(*targetFS, path) : targetFS->remove(path);
         }
-
         r->send(200, "application/json", deleted ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"Delete failed\"}");
     });
 
-    // /mkdir
     server.on("/mkdir", HTTP_GET, [](AsyncWebServerRequest *r) {
         fs::FS* targetFS = getCurrentViewFS();
         if (!r->hasParam("name") || !targetFS) { r->send(400, "text/plain", "Missing name"); return; }
-        String dir  = r->hasParam("dir") ? r->getParam("dir")->value() : "/";
+        String dir     = r->hasParam("dir")     ? r->getParam("dir")->value()     : "/";
         String storage = r->hasParam("storage") ? r->getParam("storage")->value() : currentStorageView;
         if (storage == "sdcard" && sdAvailable) targetFS = &SD;
         else targetFS = &LittleFS;
@@ -949,7 +932,6 @@ void setupWebServer() {
         r->send(200, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
     });
 
-    // /move_file
     server.on("/move_file", HTTP_GET, [](AsyncWebServerRequest *r) {
         String storage = r->hasParam("storage") ? r->getParam("storage")->value() : currentStorageView;
         String src     = r->hasParam("src")     ? sanitizePath(r->getParam("src")->value())     : "";
@@ -957,42 +939,31 @@ void setupWebServer() {
         String destDir = r->hasParam("destDir") ? r->getParam("destDir")->value() : "";
         if (src.isEmpty() || newName.isEmpty()) { r->send(400, "application/json", "{\"ok\":false,\"error\":\"Missing params\"}"); return; }
         fs::FS* targetFS = nullptr;
-        if (storage == "sdcard" && sdAvailable)           targetFS = &SD;
+        if (storage == "sdcard" && sdAvailable)              targetFS = &SD;
         else if (storage == "internal" && littleFsAvailable) targetFS = &LittleFS;
         if (!targetFS) { r->send(400, "application/json", "{\"ok\":false,\"error\":\"No storage\"}"); return; }
-        String dstDir = destDir.isEmpty() ? src.substring(0, src.lastIndexOf('/')) : destDir;
+        String dstDir  = destDir.isEmpty() ? src.substring(0, src.lastIndexOf('/')) : destDir;
         if (dstDir.isEmpty()) dstDir = "/";
         String dstPath = buildPath(dstDir, newName);
         bool ok = targetFS->rename(src, dstPath);
         r->send(200, "application/json", ok ? "{\"ok\":true,\"dst\":\"" + dstPath + "\"}" : "{\"ok\":false}");
     });
 
-    // /upload
-    // Query params (URL): path=, storage=
-    // These are read from the URL, NOT from multipart body — AsyncWebServer
-    // makes URL params available via request->getParam() in upload callbacks.
     server.on("/upload", HTTP_POST,
         [](AsyncWebServerRequest *r) {
             r->send(200, "application/json", "{\"ok\":true}");
         },
         [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-            // Use a heap-allocated File* stored in a static pointer per-request.
-            // On ESP32-C3, static local objects in lambda callbacks survive correctly
-            // because AsyncWebServer calls upload callback from the same task for a
-            // given request, but we use heap to avoid stale state across requests.
-            static File*  _upFile    = nullptr;
-            static String _upPath    = "";
+            static File*  _upFile = nullptr;
+            static String _upPath = "";
 
             if (index == 0) {
-                // Close any previously open file (safety)
                 if (_upFile) { _upFile->close(); delete _upFile; _upFile = nullptr; }
 
-                // Read destination from URL query params (NOT multipart body)
                 String upDir = request->hasParam("path")
                                ? request->getParam("path")->value()
                                : String("/www/");
                 if (!upDir.startsWith("/")) upDir = "/" + upDir;
-                // Normalize: remove trailing slash except root
                 while (upDir.length() > 1 && upDir.endsWith("/")) upDir.remove(upDir.length()-1);
 
                 String upStorage = request->hasParam("storage")
@@ -1002,15 +973,8 @@ void setupWebServer() {
                 fs::FS* targetFS = (upStorage == "sdcard" && sdAvailable)
                                    ? (fs::FS*)&SD
                                    : (littleFsAvailable ? (fs::FS*)&LittleFS : nullptr);
-                if (!targetFS) {
-                    Serial.println("Upload: no filesystem available");
-                    return;
-                }
-
-                // Ensure parent directory exists (ignore return — ok if already exists)
-                if (upDir != "/") {
-                    targetFS->mkdir(upDir);
-                }
+                if (!targetFS) { Serial.println("Upload: no filesystem available"); return; }
+                if (upDir != "/") targetFS->mkdir(upDir);
 
                 _upPath = (upDir == "/") ? "/" + filename : upDir + "/" + filename;
                 Serial.printf("Upload start [%s]: %s\n", upStorage.c_str(), _upPath.c_str());
@@ -1023,16 +987,13 @@ void setupWebServer() {
                 }
             }
 
-            if (_upFile && *_upFile && len) {
-                _upFile->write(data, len);
-            }
+            if (_upFile && *_upFile && len) _upFile->write(data, len);
 
             if (final) {
                 if (_upFile) {
                     _upFile->close();
                     Serial.printf("Upload done: %s (%u bytes)\n", _upPath.c_str(), (unsigned)(index + len));
-                    delete _upFile;
-                    _upFile = nullptr;
+                    delete _upFile; _upFile = nullptr;
                 }
                 _upPath = "";
             }
@@ -1044,9 +1005,9 @@ void setupWebServer() {
     // =========================================================================
     server.on("/export_settings", HTTP_GET, [](AsyncWebServerRequest *r) {
         JsonDocument doc;
-        doc["deviceName"]    = config.deviceName;
-        doc["deviceId"]      = config.deviceId;
-        doc["forceWebServer"]= config.forceWebServer;
+        doc["deviceName"]     = config.deviceName;
+        doc["deviceId"]       = config.deviceId;
+        doc["forceWebServer"] = config.forceWebServer;
 
         JsonObject th = doc["theme"].to<JsonObject>();
         th["mode"]              = (int)config.theme.mode;
@@ -1073,30 +1034,30 @@ void setupWebServer() {
         fm["blinkDuration"]                 = config.flowMeter.blinkDuration;
 
         JsonObject dl = doc["datalog"].to<JsonObject>();
-        dl["rotation"]              = (int)config.datalog.rotation;
-        dl["maxSizeKB"]             = config.datalog.maxSizeKB;
-        dl["folder"]                = config.datalog.folder;
-        dl["prefix"]                = config.datalog.prefix;
-        dl["dateFormat"]            = config.datalog.dateFormat;
-        dl["timeFormat"]            = config.datalog.timeFormat;
-        dl["endFormat"]             = config.datalog.endFormat;
-        dl["volumeFormat"]          = config.datalog.volumeFormat;
-        dl["includeBootCount"]      = config.datalog.includeBootCount;
-        dl["includeExtraPresses"]   = config.datalog.includeExtraPresses;
-        dl["postCorrectionEnabled"] = config.datalog.postCorrectionEnabled;
-        dl["pfToFfThreshold"]       = config.datalog.pfToFfThreshold;
-        dl["ffToPfThreshold"]       = config.datalog.ffToPfThreshold;
-        dl["manualPressThresholdMs"]= config.datalog.manualPressThresholdMs;
+        dl["rotation"]               = (int)config.datalog.rotation;
+        dl["maxSizeKB"]              = config.datalog.maxSizeKB;
+        dl["folder"]                 = config.datalog.folder;
+        dl["prefix"]                 = config.datalog.prefix;
+        dl["dateFormat"]             = config.datalog.dateFormat;
+        dl["timeFormat"]             = config.datalog.timeFormat;
+        dl["endFormat"]              = config.datalog.endFormat;
+        dl["volumeFormat"]           = config.datalog.volumeFormat;
+        dl["includeBootCount"]       = config.datalog.includeBootCount;
+        dl["includeExtraPresses"]    = config.datalog.includeExtraPresses;
+        dl["postCorrectionEnabled"]  = config.datalog.postCorrectionEnabled;
+        dl["pfToFfThreshold"]        = config.datalog.pfToFfThreshold;
+        dl["ffToPfThreshold"]        = config.datalog.ffToPfThreshold;
+        dl["manualPressThresholdMs"] = config.datalog.manualPressThresholdMs;
 
         JsonObject net = doc["network"].to<JsonObject>();
-        net["wifiMode"]    = (int)config.network.wifiMode;
-        net["apSSID"]      = config.network.apSSID;
-        net["apPassword"]  = config.network.apPassword;
-        net["clientSSID"]  = config.network.clientSSID;
+        net["wifiMode"]       = (int)config.network.wifiMode;
+        net["apSSID"]         = config.network.apSSID;
+        net["apPassword"]     = config.network.apPassword;
+        net["clientSSID"]     = config.network.clientSSID;
         net["clientPassword"] = config.network.clientPassword;
-        net["ntpServer"]   = config.network.ntpServer;
-        net["timezone"]    = config.network.timezone;
-        net["useStaticIP"] = config.network.useStaticIP;
+        net["ntpServer"]      = config.network.ntpServer;
+        net["timezone"]       = config.network.timezone;
+        net["useStaticIP"]    = config.network.useStaticIP;
 
         JsonObject hw = doc["hardware"].to<JsonObject>();
         hw["storageType"]        = (int)config.hardware.storageType;
@@ -1140,53 +1101,53 @@ void setupWebServer() {
                 JsonObject t = doc["theme"];
                 if (t["mode"].is<int>()) config.theme.mode = (ThemeMode)(int)t["mode"];
                 auto cp7 = [&](const char* k, char* dst){ if(t[k].is<const char*>()) strncpy(dst, t[k], 7); };
-                cp7("primaryColor",      config.theme.primaryColor);
-                cp7("secondaryColor",    config.theme.secondaryColor);
-                cp7("bgColor",           config.theme.bgColor);
-                cp7("textColor",         config.theme.textColor);
-                cp7("ffColor",           config.theme.ffColor);
-                cp7("pfColor",           config.theme.pfColor);
-                cp7("otherColor",        config.theme.otherColor);
-                if (t["showIcons"].is<bool>()) config.theme.showIcons = t["showIcons"];
-                if (t["chartSource"].is<int>()) config.theme.chartSource = (ChartSource)(int)t["chartSource"];
-                if (t["chartLabelFormat"].is<int>()) config.theme.chartLabelFormat = (ChartLabelFormat)(int)t["chartLabelFormat"];
+                cp7("primaryColor",   config.theme.primaryColor);
+                cp7("secondaryColor", config.theme.secondaryColor);
+                cp7("bgColor",        config.theme.bgColor);
+                cp7("textColor",      config.theme.textColor);
+                cp7("ffColor",        config.theme.ffColor);
+                cp7("pfColor",        config.theme.pfColor);
+                cp7("otherColor",     config.theme.otherColor);
+                if (t["showIcons"].is<bool>())        config.theme.showIcons        = t["showIcons"];
+                if (t["chartSource"].is<int>())       config.theme.chartSource       = (ChartSource)(int)t["chartSource"];
+                if (t["chartLabelFormat"].is<int>())  config.theme.chartLabelFormat  = (ChartLabelFormat)(int)t["chartLabelFormat"];
             }
             if (doc["flowMeter"].is<JsonObject>()) {
                 JsonObject fm = doc["flowMeter"];
-                if (fm["pulsesPerLiter"].is<float>()) config.flowMeter.pulsesPerLiter = fm["pulsesPerLiter"];
-                if (fm["calibrationMultiplier"].is<float>()) config.flowMeter.calibrationMultiplier = fm["calibrationMultiplier"];
-                if (fm["monitoringWindowSecs"].is<int>()) config.flowMeter.monitoringWindowSecs = fm["monitoringWindowSecs"];
-                if (fm["firstLoopMonitoringWindowSecs"].is<int>()) config.flowMeter.firstLoopMonitoringWindowSecs = fm["firstLoopMonitoringWindowSecs"];
+                if (fm["pulsesPerLiter"].is<float>())               config.flowMeter.pulsesPerLiter               = fm["pulsesPerLiter"];
+                if (fm["calibrationMultiplier"].is<float>())        config.flowMeter.calibrationMultiplier        = fm["calibrationMultiplier"];
+                if (fm["monitoringWindowSecs"].is<int>())           config.flowMeter.monitoringWindowSecs         = fm["monitoringWindowSecs"];
+                if (fm["firstLoopMonitoringWindowSecs"].is<int>())  config.flowMeter.firstLoopMonitoringWindowSecs= fm["firstLoopMonitoringWindowSecs"];
             }
             if (doc["datalog"].is<JsonObject>()) {
                 JsonObject dl = doc["datalog"];
-                if (dl["rotation"].is<int>()) config.datalog.rotation = (DatalogRotation)(int)dl["rotation"];
-                if (dl["maxSizeKB"].is<int>()) config.datalog.maxSizeKB = dl["maxSizeKB"];
-                if (dl["dateFormat"].is<int>()) config.datalog.dateFormat = dl["dateFormat"];
-                if (dl["timeFormat"].is<int>()) config.datalog.timeFormat = dl["timeFormat"];
-                if (dl["endFormat"].is<int>()) config.datalog.endFormat = dl["endFormat"];
-                if (dl["volumeFormat"].is<int>()) config.datalog.volumeFormat = dl["volumeFormat"];
-                if (dl["includeBootCount"].is<bool>()) config.datalog.includeBootCount = dl["includeBootCount"];
-                if (dl["includeExtraPresses"].is<bool>()) config.datalog.includeExtraPresses = dl["includeExtraPresses"];
-                if (dl["postCorrectionEnabled"].is<bool>()) config.datalog.postCorrectionEnabled = dl["postCorrectionEnabled"];
-                if (dl["pfToFfThreshold"].is<float>()) config.datalog.pfToFfThreshold = dl["pfToFfThreshold"];
-                if (dl["ffToPfThreshold"].is<float>()) config.datalog.ffToPfThreshold = dl["ffToPfThreshold"];
+                if (dl["rotation"].is<int>())               config.datalog.rotation               = (DatalogRotation)(int)dl["rotation"];
+                if (dl["maxSizeKB"].is<int>())              config.datalog.maxSizeKB              = dl["maxSizeKB"];
+                if (dl["dateFormat"].is<int>())             config.datalog.dateFormat             = dl["dateFormat"];
+                if (dl["timeFormat"].is<int>())             config.datalog.timeFormat             = dl["timeFormat"];
+                if (dl["endFormat"].is<int>())              config.datalog.endFormat              = dl["endFormat"];
+                if (dl["volumeFormat"].is<int>())           config.datalog.volumeFormat           = dl["volumeFormat"];
+                if (dl["includeBootCount"].is<bool>())      config.datalog.includeBootCount       = dl["includeBootCount"];
+                if (dl["includeExtraPresses"].is<bool>())   config.datalog.includeExtraPresses    = dl["includeExtraPresses"];
+                if (dl["postCorrectionEnabled"].is<bool>()) config.datalog.postCorrectionEnabled  = dl["postCorrectionEnabled"];
+                if (dl["pfToFfThreshold"].is<float>())      config.datalog.pfToFfThreshold        = dl["pfToFfThreshold"];
+                if (dl["ffToPfThreshold"].is<float>())      config.datalog.ffToPfThreshold        = dl["ffToPfThreshold"];
                 if (dl["manualPressThresholdMs"].is<int>()) config.datalog.manualPressThresholdMs = dl["manualPressThresholdMs"];
             }
             if (doc["network"].is<JsonObject>()) {
                 JsonObject net = doc["network"];
-                if (net["wifiMode"].is<int>()) config.network.wifiMode = (WiFiModeType)(int)net["wifiMode"];
+                if (net["wifiMode"].is<int>())         config.network.wifiMode   = (WiFiModeType)(int)net["wifiMode"];
                 if (net["ntpServer"].is<const char*>()) strncpy(config.network.ntpServer, net["ntpServer"], 64);
-                if (net["timezone"].is<int>()) config.network.timezone = net["timezone"];
-                if (net["useStaticIP"].is<bool>()) config.network.useStaticIP = net["useStaticIP"];
+                if (net["timezone"].is<int>())         config.network.timezone   = net["timezone"];
+                if (net["useStaticIP"].is<bool>())     config.network.useStaticIP= net["useStaticIP"];
             }
             if (doc["hardware"].is<JsonObject>()) {
                 JsonObject hw = doc["hardware"];
-                if (hw["storageType"].is<int>()) config.hardware.storageType = (StorageType)(int)hw["storageType"];
-                if (hw["wakeupMode"].is<int>()) config.hardware.wakeupMode = (WakeupMode)(int)hw["wakeupMode"];
-                if (hw["cpuFreqMHz"].is<int>()) config.hardware.cpuFreqMHz = hw["cpuFreqMHz"];
+                if (hw["storageType"].is<int>())        config.hardware.storageType        = (StorageType)(int)hw["storageType"];
+                if (hw["wakeupMode"].is<int>())         config.hardware.wakeupMode         = (WakeupMode)(int)hw["wakeupMode"];
+                if (hw["cpuFreqMHz"].is<int>())         config.hardware.cpuFreqMHz         = hw["cpuFreqMHz"];
                 if (hw["defaultStorageView"].is<int>()) config.hardware.defaultStorageView = hw["defaultStorageView"];
-                if (hw["debounceMs"].is<int>()) config.hardware.debounceMs = hw["debounceMs"];
+                if (hw["debounceMs"].is<int>())         config.hardware.debounceMs         = hw["debounceMs"];
             }
             saveConfig();
             r->send(200, "text/plain", "OK");
@@ -1211,11 +1172,9 @@ void setupWebServer() {
         StaticJsonDocument<2048> doc;
         JsonArray nets = doc.createNestedArray("networks");
         int n = WiFi.scanComplete();
-        if (n == WIFI_SCAN_RUNNING) {
-            doc["scanning"] = true;
-        } else if (n == WIFI_SCAN_FAILED) {
-            doc["error"] = "Scan failed";
-        } else if (n >= 0) {
+        if      (n == WIFI_SCAN_RUNNING) { doc["scanning"] = true; }
+        else if (n == WIFI_SCAN_FAILED)  { doc["error"] = "Scan failed"; }
+        else if (n >= 0) {
             for (int i = 0; i < n && i < 20; i++) {
                 JsonObject net = nets.createNestedObject();
                 net["ssid"]   = WiFi.SSID(i);
@@ -1259,9 +1218,6 @@ void setupWebServer() {
     server.onNotFound([](AsyncWebServerRequest *r) {
         String path = r->url();
 
-        // /www/* — serve from LittleFS directly.
-        // Works in both normal mode (serveStatic misses here) and failsafe mode.
-        // Allows newly uploaded files to be served immediately without restart.
         if (path.startsWith("/www/")) {
             if (littleFsAvailable && LittleFS.exists(path)) {
                 r->send(LittleFS, path, getMime(path));
@@ -1271,24 +1227,20 @@ void setupWebServer() {
             return;
         }
 
-        // Block stale legacy root-level UI files.
         if (path == "/web.js"     || path == "/style.css" ||
             path == "/index.html" || path == "/index.htm") {
             r->send(404, "text/plain", "Moved to /www/");
             return;
         }
 
-        // System assets at LittleFS root (logos, favicon, chart.min.js, changelog, etc.)
         if (littleFsAvailable && LittleFS.exists(path)) {
             r->send(LittleFS, path, getMime(path));
             return;
         }
-        // SD card log files, etc.
         if (fsAvailable && activeFS && activeFS->exists(path)) {
             r->send(*activeFS, path, getMime(path));
             return;
         }
-        // SPA fallback: extensionless GET -> serve index.html or failsafe
         if (r->method() == HTTP_GET && path.indexOf('.') < 0) {
             if (littleFsAvailable && LittleFS.exists("/www/index.html")) {
                 r->send(LittleFS, "/www/index.html", "text/html");

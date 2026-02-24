@@ -3,11 +3,19 @@
 #include <Arduino.h>
 
 // ============================================================================
-// VERSION
+// VERSION  –  single source of truth
 // ============================================================================
 #define VERSION_MAJOR 4
 #define VERSION_MINOR 1
-#define VERSION_PATCH 4
+#define VERSION_PATCH 5
+
+// Inline so every translation unit that includes Config.h gets the same
+// string without needing Utils.h
+inline String getVersionString() {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "v%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+    return String(buf);
+}
 
 // Debug mode - set to 1 to enable Serial debug output, 0 to save ~3KB flash
 #define DEBUG_MODE 0
@@ -32,10 +40,10 @@ constexpr const char* DEFAULT_AP_PASSWORD    = "water12345";
 constexpr const char* DEFAULT_DATALOG_PREFIX = "datalog";
 constexpr const char* DEFAULT_NTP_SERVER     = "pool.ntp.org";
 
-const unsigned long TEST_MODE_BLINK_MS    = 250;
-const unsigned long TEST_MODE_HOLD_MS     = 1000;
+const unsigned long TEST_MODE_BLINK_MS      = 250;
+const unsigned long TEST_MODE_HOLD_MS       = 1000;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
-const int           LOG_BATCH_SIZE        = 20;
+const int           LOG_BATCH_SIZE          = 20;
 
 // ISR Debounce for flow sensor
 const unsigned long ISR_DEBOUNCE_MICROS = 1000;  // 1ms

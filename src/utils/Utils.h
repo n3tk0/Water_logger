@@ -3,9 +3,10 @@
 #include <FS.h>
 #include "../core/Config.h"
 
+// getVersionString() is defined inline in Config.h – do NOT redeclare here.
+
 // ---- String helpers ----
 String formatFileSize(uint64_t bytes);
-String getVersionString();
 
 // ---- Path helpers ----
 String buildPath(const String& dir, const String& name);
