@@ -1,6 +1,6 @@
 /**
  * src/web/WebServer.cpp
- * ESP32 Water Logger v4.1.4 – Refactored: static files from LittleFS /www/
+ * ESP32 Water Logger v4.1.5 – Refactored: static files from LittleFS /www/
  *
  * Architecture:
  *   – Normal mode  : AsyncWebServer serves /www/index.html + /www/web.js
@@ -111,7 +111,7 @@ input[type=text]{width:100%;padding:7px 11px;border:1px solid #e2e8f0;border-rad
 <body>
 <header>
   <h1>&#x1F4A7; Water Logger <span class="badge">SETUP MODE</span></h1>
-  <div class="sub">UI files missing from /www/ &mdash; upload them to restore normal operation</div>
+  <div class="sub">Upload UI files to /www/ to restore normal operation &mdash; or bookmark <strong>/setup</strong> for recovery</div>
 </header>
 <div class="container">
 
@@ -119,6 +119,7 @@ input[type=text]{width:100%;padding:7px 11px;border:1px solid #e2e8f0;border-rad
     &#x26A0;&#xFE0F; <strong>Normal UI not found.</strong>
     Upload <code>index.html</code>, <code>web.js</code> and <code>style.css</code> into <code>/www/</code>.
     If you see a broken page normally, you likely have <strong>old files at the root</strong> &mdash; delete them below.
+    If the main UI is broken, navigate to <code>/setup</code> at any time to return here.
   </div>
 
   <!-- UPLOAD -->
@@ -369,6 +370,14 @@ void setupWebServer() {
         });
         Serial.println("Web UI: FAILSAFE mode (upload /www/index.html to restore)");
     }
+
+
+    // /setup – always serves failsafe UI regardless of index.html state
+    // Provides a safe recovery path even when /www/index.html is broken/corrupt.
+    // Accessible at http://<device-ip>/setup at any time.
+    server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *r) {
+        r->send_P(200, "text/html", FAILSAFE_HTML);
+    });
 
     // ── Redirect /dashboard /files /live /settings to SPA ────────────────────
     auto spaRedirect = [](AsyncWebServerRequest *r) { r->redirect("/"); };

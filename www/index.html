@@ -4,29 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Water Logger</title>
-<link rel="stylesheet" href="/www/style.css">
-<style id="themeVars">:root{--primary:#275673;--secondary:#3498db}</style>
-<style>
-/* ── SPA page routing ── */
-.page{display:none}.page.active{display:block}
-/* ── Popup overlay ── */
-.popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;justify-content:center;align-items:center;padding:1rem}
-.popup-content{background:var(--card);border-radius:var(--radius);padding:2rem;max-width:450px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)}
-/* ── Extra utility classes ── */
-.hidden{display:none!important}
-.color-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1rem}
-.settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1rem;margin-bottom:1rem}
-.setting-card{background:var(--card);border-radius:var(--radius);padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:.15s;border:1px solid var(--border)}
-.setting-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.setting-card .icon{font-size:2rem;margin-bottom:.5rem}
-.setting-card .title{font-weight:600;font-size:.9rem}
-</style>
+<link rel="stylesheet" href="/style.css">
+<style id="themeVars">:root{--primary:#275673;--secondary:#4a5568}</style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════════════
-     SIDEBAR  (desktop)
-══════════════════════════════════════════════════════════ -->
 <aside class="sidebar">
   <div class="sidebar-header">
     <img id="sidebarLogo" src="" alt="" style="display:none;max-height:40px" onerror="this.style.display='none'">
@@ -34,34 +16,28 @@
   </div>
   <nav>
     <div class="nav-section">Main</div>
-    <a href="#dashboard" class="nav-item" data-page="dashboard" onclick="nav(this)">📊 <span>Dashboard</span></a>
-    <a href="#files"     class="nav-item" data-page="files"     onclick="nav(this)">📁 <span>Files</span></a>
-    <a href="#live"      class="nav-item" data-page="live"      onclick="nav(this)">📡 <span>Live</span></a>
+    <a href="#dashboard" class="nav-item" data-page="dashboard" onclick="nav(this)"><span class="icon">📊</span> <span>Dashboard</span></a>
+    <a href="#files"     class="nav-item" data-page="files"     onclick="nav(this)"><span class="icon">📁</span> <span>Files</span></a>
+    <a href="#live"      class="nav-item" data-page="live"      onclick="nav(this)"><span class="icon">📡</span> <span>Live</span></a>
     <div class="nav-section">System</div>
-    <a href="#settings"  class="nav-item" data-page="settings"  onclick="nav(this)">⚙️ <span>Settings</span></a>
+    <a href="#settings"  class="nav-item" data-page="settings"  onclick="nav(this)"><span class="icon">⚙️</span> <span>Settings</span></a>
+    <a href="#settings_update" class="nav-item" data-page="settings_update" onclick="nav(this)"><span class="icon">📤</span> <span>Update</span></a>
   </nav>
 </aside>
 
-<!-- ══════════════════════════════════════════════════════════
-     APP HEADER  (mobile)
-══════════════════════════════════════════════════════════ -->
 <header class="app-header hide-desktop">
   <div class="logo">
     <img id="headerLogo" src="" alt="" style="display:none;max-height:32px" onerror="this.style.display='none'">
     <span id="headerName">Water Logger</span>
   </div>
   <div class="status">
-    <div class="time" id="headerTime">--:--</div>
+    <div class="time" id="headerTime">--:--:--</div>
     <span id="headerNet">…</span>
   </div>
 </header>
 
-<!-- ══════════════════════════════════════════════════════════
-     MAIN CONTENT
-══════════════════════════════════════════════════════════ -->
 <main class="main-content">
 
-<!-- ─────────────────── RESTART POPUP (global) ─────────────── -->
 <div id="restartPopup" class="popup-overlay">
   <div class="popup-content">
     <div id="rPopIcon" style="font-size:4rem;margin-bottom:1rem">🔄</div>
@@ -77,11 +53,8 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════
-     PAGE: DASHBOARD
-════════════════════════════════ -->
 <div id="page-dashboard" class="page">
-  <div class="page-header"><h1>📊 Dashboard</h1></div>
+  <div class="page-header"><h1><span class="icon">📊</span> Dashboard</h1></div>
 
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
@@ -142,13 +115,10 @@
       </div>
     </div>
   </div>
-</div><!-- /page-dashboard -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: FILES
-════════════════════════════════ -->
 <div id="page-files" class="page">
-  <div class="page-header"><h1>📁 File Manager</h1></div>
+  <div class="page-header"><h1><span class="icon">📁</span> File Manager</h1></div>
 
   <div id="files-tabs" style="display:flex;gap:4px;margin-bottom:1rem"></div>
 
@@ -171,7 +141,6 @@
       <div id="files-list">Loading…</div>
     </div>
 
-    <!-- Edit mode tools (hidden by default) -->
     <div id="files-editTools" style="display:none">
       <div class="card-body" style="border-top:1px solid var(--border);background:var(--bg)">
         <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
@@ -192,7 +161,6 @@
         </div>
       </div>
 
-      <!-- Move/Rename popup -->
       <div id="movePopup" class="popup-overlay">
         <div class="popup-content" style="text-align:left;max-width:400px">
           <div style="font-size:2.5rem;text-align:center;margin-bottom:.5rem">✂️</div>
@@ -201,7 +169,7 @@
           <div class="form-group"><label class="form-label">Move to Folder</label>
             <select id="mv-dest" class="form-input form-select">
               <option value="">(same location)</option>
-              <option value="/">/  (root)</option>
+              <option value="/">/ (root)</option>
             </select>
           </div>
           <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
@@ -210,17 +178,14 @@
           </div>
         </div>
       </div>
-    </div><!-- /files-editTools -->
+    </div>
   </div>
-</div><!-- /page-files -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: LIVE
-════════════════════════════════ -->
 <div id="page-live" class="page">
   <style>.app-footer{display:none!important}</style>
   <div class="page-header">
-    <h1>📡 Live</h1>
+    <h1><span class="icon">📡</span> Live</h1>
     <div class="breadcrumb"><span id="live-conn" class="text-success">● Connected</span></div>
   </div>
 
@@ -315,14 +280,11 @@
       </div>
     </div>
   </div>
-</div><!-- /page-live -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS HUB
-════════════════════════════════ -->
 <div id="page-settings" class="page">
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-    <div><h1>⚙️ Settings</h1></div>
+    <div><h1><span class="icon">⚙️</span> Settings</h1></div>
     <button onclick="showRestartPopup()" class="btn btn-warning">🔄 Restart</button>
   </div>
 
@@ -337,7 +299,6 @@
     <div class="setting-card" onclick="showSubpage('settings_update')">   <div class="icon">📤</div><div class="title">Update</div></div>
   </div>
 
-  <!-- Backup & Restore -->
   <div class="card mt-2">
     <div class="card-header">💾 Backup &amp; Restore</div>
     <div class="card-body">
@@ -356,15 +317,12 @@
       </div>
     </div>
   </div>
-</div><!-- /page-settings -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – DEVICE
-════════════════════════════════ -->
 <div id="page-settings_device" class="page">
   <div class="page-header">
     <h1>📱 Device</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Device</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Device</div>
   </div>
   <div id="sd-msg"></div>
   <form onsubmit="settingsSave(event,'/save_device',this)">
@@ -374,12 +332,12 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input type="text" id="sd-devId" name="deviceId" maxlength="12" class="form-input" style="flex:1;min-width:120px" disabled>
           <button type="button" onclick="regenDevId()" class="btn btn-secondary btn-sm">🔄 New ID</button>
-          <button type="button" onclick="document.getElementById('sd-devId').disabled=!document.getElementById('sd-devId').disabled" class="btn btn-secondary btn-sm">✏️ Manual</button>
+          <button type="button" onclick="toggleManualId('sd-devId')" class="btn btn-secondary btn-sm">✏️ Manual</button>
         </div>
       </div>
     </div></div>
     <div class="card"><div class="card-header">💾 Storage</div><div class="card-body">
-      <div class="form-group"><label class="form-label">Default Storage View</label>
+      <div class="form-group"><label class="form-label">Default Storage</label>
         <select name="defaultStorageView" id="sd-defaultStorage" class="form-input form-select">
           <option value="0">💾 Internal (LittleFS)</option>
           <option value="1">💳 SD Card</option>
@@ -406,15 +364,12 @@
     </div></div>
     <button type="submit" class="btn btn-primary btn-block">💾 Save</button>
   </form>
-</div><!-- /page-settings_device -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – FLOW METER
-════════════════════════════════ -->
 <div id="page-settings_flowmeter" class="page">
   <div class="page-header">
     <h1>💧 Flow Meter</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Flow Meter</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Flow Meter</div>
   </div>
   <div id="sf-msg"></div>
   <form onsubmit="settingsSave(event,'/save_flowmeter',this)">
@@ -427,7 +382,7 @@
     <div class="card"><div class="card-header">⏱️ Timing</div><div class="card-body">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Window (sec)</label><input type="number" name="monitoringWindowSecs" id="sf-win" class="form-input"><p class="form-hint">Time window of idle before logging.</p></div>
-        <div class="form-group"><label class="form-label">First Loop (sec)</label><input type="number" name="firstLoopWindowSecs" id="sf-fl" class="form-input"><p class="form-hint">First loop delay (for delayed fill).</p></div>
+        <div class="form-group"><label class="form-label">First Loop (sec)</label><input type="number" name="firstLoopWindowSecs" id="sf-fl" class="form-input"><p class="form-hint">First loop delay before logging (for delayed fill).</p></div>
       </div>
     </div></div>
     <div class="card"><div class="card-header">🧪 Test Mode</div><div class="card-body">
@@ -442,20 +397,17 @@
     </div></div>
     <button type="submit" class="btn btn-primary btn-block">💾 Save</button>
   </form>
-</div><!-- /page-settings_flowmeter -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – HARDWARE
-════════════════════════════════ -->
 <div id="page-settings_hardware" class="page">
   <div class="page-header">
     <h1>🔧 Hardware</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Hardware</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Hardware</div>
   </div>
   <div id="hw-msg"></div>
   <div class="alert alert-warning">⚠️ Changes require device restart to take effect</div>
   <div class="card" id="hw-boardDiagramCard" style="display:none"><div class="card-body text-center">
-    <img id="hw-boardDiagram" src="" style="max-width:100%;height:auto">
+    <img id="hw-boardDiagram" src="" style="max-width:100%;height:auto" onerror="this.parentElement.parentElement.style.display='none'">
   </div></div>
   <form onsubmit="settingsSave(event,'/save_hardware',this,true)">
     <div class="card"><div class="card-header">💾 Storage</div><div class="card-body">
@@ -512,15 +464,12 @@
     </div></div>
     <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Settings will be saved and device will restart. Continue?')">💾 Save &amp; Restart</button>
   </form>
-</div><!-- /page-settings_hardware -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – THEME
-════════════════════════════════ -->
 <div id="page-settings_theme" class="page">
   <div class="page-header">
     <h1>🎨 Theme</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Theme</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Theme</div>
   </div>
   <div id="th-msg"></div>
   <form onsubmit="settingsSave(event,'/save_theme',this)">
@@ -574,22 +523,19 @@
         <select name="chartLabelFormat" id="th-labelFmt" class="form-input form-select">
           <option value="0">📅 Date + Time</option>
           <option value="1">🔢 Boot Count (#1234)</option>
-          <option value="2">📅🔢 Both</option>
+          <option value="2">📅🔢 Both (Date Time #Boot)</option>
         </select>
         <p class="form-hint">How to label bars in dashboard chart</p>
       </div>
     </div></div>
     <button type="submit" class="btn btn-primary btn-block">💾 Save</button>
   </form>
-</div><!-- /page-settings_theme -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – NETWORK
-════════════════════════════════ -->
 <div id="page-settings_network" class="page">
   <div class="page-header">
     <h1>🌐 Network</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Network</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Network</div>
   </div>
   <div id="net-msg"></div>
   <div class="card"><div class="card-body">
@@ -616,7 +562,7 @@
           </div>
         </div>
       </div></div>
-      <div class="card"><div class="card-header">🔧 AP Network Properties</div><div class="card-body">
+      <div class="card"><div class="card-header">🔧 Network Properties</div><div class="card-body">
         <div class="form-row">
           <div class="form-group"><label class="form-label">IP Address</label><input type="text" name="apIP" id="net-apIP" class="form-input"></div>
           <div class="form-group"><label class="form-label">Gateway</label><input type="text" name="apGateway" id="net-apGW" class="form-input"></div>
@@ -641,7 +587,7 @@
           </div>
         </div>
       </div></div>
-      <div class="card"><div class="card-header">🔧 Client Network Properties</div><div class="card-body">
+      <div class="card"><div class="card-header">🔧 Network Properties</div><div class="card-body">
         <div class="form-row">
           <div class="form-group"><label class="form-label">IP Address</label><input type="text" name="staticIP" id="net-ip2" class="form-input" disabled style="opacity:.5"></div>
           <div class="form-group"><label class="form-label">Gateway</label><input type="text" name="gateway" id="net-gw" class="form-input" disabled style="opacity:.5"></div>
@@ -656,15 +602,12 @@
 
     <button type="submit" class="btn btn-primary btn-block">💾 Save &amp; Restart</button>
   </form>
-</div><!-- /page-settings_network -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – TIME
-════════════════════════════════ -->
 <div id="page-settings_time" class="page">
   <div class="page-header">
     <h1>🕐 Time Sync</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Time Sync</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Time Sync</div>
   </div>
   <div id="time-msg"></div>
 
@@ -719,15 +662,12 @@
       <p class="form-hint" style="margin-top:.5rem">Backup saves to RTC RAM + flash file</p>
     </div>
   </div></div>
-</div><!-- /page-settings_time -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – DATALOG
-════════════════════════════════ -->
 <div id="page-settings_datalog" class="page">
   <div class="page-header">
     <h1>📝 Data Log</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Data Log</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Data Log</div>
   </div>
   <div id="dl-msg"></div>
   <form onsubmit="settingsSave(event,'/save_datalog',this)">
@@ -811,6 +751,7 @@
           <div class="form-group"><label class="form-label">FF → PF Threshold (L)</label><input type="number" step="0.1" name="ffToPfThreshold" id="dl-ffpf" min="0.1" max="20" class="form-input"><p class="form-hint">FF_BTN with volume ≤ this → corrected to PF_BTN</p></div>
         </div>
         <div class="form-group"><label class="form-label">Button Hold Threshold (ms)</label><input type="number" step="50" name="manualPressThresholdMs" id="dl-hold" min="0" max="5000" class="form-input"><p class="form-hint">If button held longer, correction is skipped. 0 = disabled.</p></div>
+        <p class="form-hint" style="margin-top:.5rem">Corrects button identification by comparing measured water volume against thresholds. Also checks how long the button was held — an extended press releases more water intentionally, so correction is skipped. Only applies to clean cycles with no extra button presses. Corrections are logged to btn_log.txt.</p>
       </div>
     </div></div>
 
@@ -818,15 +759,12 @@
 
     <button type="submit" class="btn btn-primary btn-block">💾 Save</button>
   </form>
-</div><!-- /page-settings_datalog -->
+</div>
 
-<!-- ════════════════════════════════
-     PAGE: SETTINGS – OTA UPDATE
-════════════════════════════════ -->
 <div id="page-settings_update" class="page">
   <div class="page-header">
     <h1>📤 Firmware Update</h1>
-    <div class="breadcrumb"><a href="#" onclick="showSubpage('settings')">Settings</a> / Update</div>
+    <div class="breadcrumb"><a href="#settings">Settings</a> / Update</div>
   </div>
   <div class="card"><div class="card-header">🔄 OTA Update</div><div class="card-body">
     <p class="text-muted" style="margin-bottom:1rem">Select a compiled firmware .bin file to update over the air.</p>
@@ -842,11 +780,15 @@
     </div>
     <div id="ota-msg" style="margin-top:.5rem"></div>
   </div></div>
-</div><!-- /page-settings_update -->
+  <div class="card"><div class="card-header">⚠️ Safety Notes</div><div class="card-body">
+    <ul style="margin:0;padding-left:1.2rem;font-size:0.9rem">
+      <li>.bin files only</li>
+      <li>Do not disconnect power</li>
+      <li>Device will restart after update</li>
+    </ul>
+  </div></div>
+</div>
 
-<!-- ════════════════════════════════
-     FOOTER
-════════════════════════════════ -->
 <footer class="app-footer">
   <div class="footer-grid">
     <span>🔄 Boot: <span id="footer-boot">-</span></span>
@@ -860,18 +802,15 @@
   <div class="footer-version">Board: <span id="footer-chip">-</span> – Firmware: <span id="footer-ver">-</span></div>
 </footer>
 
-</main><!-- /main-content -->
+</main>
 
-<!-- ══════════════════════════════════════════════════════════
-     BOTTOM NAV  (mobile)
-══════════════════════════════════════════════════════════ -->
 <nav class="bottom-nav">
-  <a href="#dashboard" data-page="dashboard" onclick="nav(this)"><span class="icon">📊</span>Home</a>
-  <a href="#files"     data-page="files"     onclick="nav(this)"><span class="icon">📁</span>Files</a>
-  <a href="#live"      data-page="live"      onclick="nav(this)"><span class="icon">📡</span>Live</a>
-  <a href="#settings"  data-page="settings"  onclick="nav(this)"><span class="icon">⚙️</span>Settings</a>
+  <a href="#dashboard" data-page="dashboard" onclick="nav(this)"><span class="icon">📊</span> Home</a>
+  <a href="#files"     data-page="files"     onclick="nav(this)"><span class="icon">📁</span> Files</a>
+  <a href="#live"      data-page="live"      onclick="nav(this)"><span class="icon">📡</span> Live</a>
+  <a href="#settings"  data-page="settings"  onclick="nav(this)"><span class="icon">⚙️</span> Settings</a>
 </nav>
 
-<script src="/www/web.js"></script>
+<script src="/web.js"></script>
 </body>
 </html>

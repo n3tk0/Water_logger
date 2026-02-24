@@ -1,3 +1,18 @@
+## v4.1.5 - SPA refactor & recovery improvements
+- Web UI migrated to external SPA served from LittleFS /www/ (index.html, web.js, style.css)
+- Failsafe mode: embedded setup page served when /www/index.html is missing
+- /setup route always available: navigate to http://<device-ip>/setup to access the recovery UI even when the main UI loads a broken index.html
+- Settings pages (Flow Meter, Hardware, Theme) now load config from /export_settings instead of /api/status — previously returned empty fields
+- Dashboard CSV export: filename now includes _noZero suffix when "Exclude 0.00L" filter is active (matches firmware behaviour)
+- OTA update: added pre-upload validation — checks .bin extension, minimum 10 KB size, and ESP32 magic byte 0xE9 before upload begins
+- Live page state hint now reads window/firstLoop timing from /export_settings (CFG.flowMeter) instead of undefined ST.flowMeter
+- Datalog page: currentFile selection sourced from /api/filelist response (always accurate); config fields from /export_settings
+- Files page: default storage tab now reads hardware.defaultStorageView from /export_settings (CFG.hardware) instead of undefined
+- Network settings: live status (IP, mode) from /api/status; full config from /export_settings; passwords intentionally blank on load (security)
+- Chart.js loader: idempotent, supports local path or CDN with auto-fallback, error shown in dashboard if both fail
+- Bootstrap: /api/status and /export_settings fetched in parallel at startup, cached as ST and CFG globals
+- Version bump: VERSION_PATCH 4 → 5
+
 ## v4.1.4 - Post-correction improvements
 - Button hold duration measurement: tracks how long flush plate button is pressed
 - Extended hold (≥ threshold) skips post-correction — extra volume is intentional
