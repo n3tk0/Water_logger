@@ -1,4 +1,4 @@
-/**
+﻿/**
  * /www/web.js  –  Water Logger SPA JavaScript  v4.1.5
  * Pairs with /www/index.html and WebServer.cpp API endpoints.
  *
@@ -44,7 +44,8 @@ window.addEventListener('DOMContentLoaded', function() {
         var hash = location.hash.replace('#','') || 'dashboard';
         navigateTo(hash);
     });
-});
+}
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; });
 
 window.addEventListener('hashchange', function() {
     var hash = location.hash.replace('#','') || 'dashboard';
@@ -391,6 +392,7 @@ function dbInit() {
             });
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Matches original: function loadData()
 function dbLoadData() {
@@ -405,6 +407,7 @@ function dbLoadData() {
             if (err) { err.textContent = 'Error loading: '+e.message; err.style.display='block'; }
         });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Matches original: function applyFilters()
 function dbApplyFilters() {
@@ -428,7 +431,7 @@ function dbProcessData(data) {
         if (p.length < 2) return;
         var dateStr='', timeStr='', endStr='', boot='', reason='', vol=0, ff=0, pf=0, i=0;
 
-        // Auto-detect date format (DD/MM/YYYY · DD.MM.YYYY · YYYY-MM-DD)
+        // Auto-detect date format (DD/MM/YYYY ┬╖ DD.MM.YYYY ┬╖ YYYY-MM-DD)
         if (p[0].match(/\d{2}[\/\.\-]\d{2}[\/\.\-]\d{4}/) || p[0].match(/\d{4}\-\d{2}\-\d{2}/)) { dateStr=p[0]; i=1; }
         if (p[i] && p[i].indexOf(':')>=0)                                                         { timeStr=p[i]; i++; }
         if (p[i] && (p[i].indexOf(':')>=0 || p[i].match(/^\d+s$/)))                              { endStr =p[i]; i++; }
@@ -508,6 +511,7 @@ function dbRenderChart(data) {
         }
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Matches original: function exportCSV()
 function dbExportCSV() {
@@ -603,6 +607,7 @@ function filesRender() {
             if (list) list.innerHTML = "<div class='list-item' style='color:red'>Error: "+e+"</div>";
         });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 function filesSetStorage(s) { currentFilesStorage=s; currentFilesDir='/'; filesRender(); }
 function filesEnterDir(d)    { currentFilesDir=d; filesRender(); }
@@ -687,7 +692,7 @@ function liveInit() {
         var fm  = CFG.flowMeter || {};
         var fl  = fm.firstLoopMonitoringWindowSecs || '?';
         var win = fm.monitoringWindowSecs || '?';
-        hint.textContent = '🔵 IDLE → 🟡 WAIT_FLOW ('+fl+'s) → 🟢 MONITORING ('+win+'s idle) → Logging';
+        hint.textContent = '🔧 IDLE → 🟡 WAIT_FLOW ('+fl+'s) → 🟢 MONITORING ('+win+'s idle) → Logging';
     }
 
     liveUpdate();
@@ -733,7 +738,7 @@ function liveUpdate() {
             var modeEl=document.getElementById('mode');
             if (modeEl) {
                 if (d.mode==='online')      modeEl.innerHTML='🌐 Online Logger';
-                else if (d.mode==='webonly')modeEl.innerHTML='📶 Web Only';
+                else if (d.mode==='webonly')modeEl.innerHTML='📡 Web Only';
                 else                        modeEl.innerHTML='📊 Logging';
             }
 
@@ -748,6 +753,7 @@ function liveUpdate() {
             if (conn){ conn.textContent='● Disconnected'; conn.className='text-danger'; }
         });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 function liveBtn(id,pressed,txtOn,txtOff,colorOn,colorOff) {
     var el=document.getElementById(id); if(!el) return;
@@ -816,6 +822,7 @@ function sdInit() {
         }
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 function regenDevId() {
     if (!confirm('Generate new ID based on MAC address?')) return;
@@ -920,6 +927,7 @@ function changelogLoad() {
                 "<div class='alert alert-warning'>Changelog not found. Upload <code>/changelog.txt</code> to LittleFS.</div>";
         });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // ============================================================================
 // ══ SETTINGS: FLOW METER ══
@@ -936,6 +944,7 @@ function sfInit() {
         fetch('/api/status').then(function(r2){return r2.json();}).then(function(s){ setEl('sf-boot',s.boot); });
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // ============================================================================
 // ══ SETTINGS: HARDWARE ══
@@ -960,6 +969,7 @@ function hwInit() {
         }
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // ============================================================================
 // ══ SETTINGS: THEME ══
@@ -984,6 +994,7 @@ function thInit() {
         setVal('th-labelFmt',  th.chartLabelFormat!==undefined?th.chartLabelFormat:0);
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // ============================================================================
 // ══ SETTINGS: NETWORK ══
@@ -1008,6 +1019,7 @@ function netInit() {
         netToggleStatic();
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Matches original: function toggleMode()
 function netToggleMode() {
@@ -1026,6 +1038,7 @@ function netToggleStatic() {
         el.disabled=!en; el.style.opacity=en?'1':'0.5'; el.style.cursor=en?'text':'not-allowed';
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Matches original: function scanWifi() / function checkScanResult()
 function netScanWifi() {
@@ -1044,13 +1057,13 @@ function netCheckScan() {
         } else if (d.error) {
             list.innerHTML="<div class='list-item'>❌ "+d.error+"</div>";
         } else if (!d.networks||!d.networks.length) {
-            list.innerHTML="<div class='list-item'>📡 No networks found</div>";
+            list.innerHTML="<div class='list-item'>📶 No networks found</div>";
         } else {
             var h='';
             d.networks.forEach(function(n) {
                 var safe=n.ssid.replace(/'/g,"\\'");
                 h+="<div class='list-item' style='cursor:pointer' onclick=\"document.getElementById('cSSID').value='"+safe+"';document.getElementById('wifiList').style.display='none'\">";
-                h+=(n.secure?'🔒':'📶')+' '+n.ssid+' <small class="text-muted">('+n.rssi+' dBm)</small></div>';
+                h+=(n.secure?'⚙️':'📡')+' '+n.ssid+' <small class="text-muted">('+n.rssi+' dBm)</small></div>';
             });
             list.innerHTML=h;
         }
@@ -1087,6 +1100,7 @@ function timeInit() {
         setVal('time-tz', net.timezone!==undefined?net.timezone:0);
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 function timeSetManual(ev) {
     ev.preventDefault();
@@ -1096,6 +1110,7 @@ function timeSetManual(ev) {
         if (d.ok) timeInit();
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 function timeSyncNTP(ev) {
     if (ev) ev.preventDefault();
     fetch('/sync_time',{method:'POST'}).then(function(r){return r.json();}).then(function(d) {
@@ -1103,6 +1118,7 @@ function timeSyncNTP(ev) {
         if (d.ok) timeInit();
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 function timeRtcProtect(ev) {
     if (ev) ev.preventDefault();
     var fd=new FormData();
@@ -1121,6 +1137,7 @@ function timeRestoreBoot() {
         if (d.ok) timeInit();
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // ============================================================================
 // ══ SETTINGS: DATALOG ══
@@ -1172,7 +1189,7 @@ function dlLoadFiles() {
         files.forEach(function(f) {
             var isCur=f.path===curFile;
             html+="<div class='list-item'><span>"+
-                (isCur?"<strong class='text-success'>✔ ":'')+
+                (isCur?"<strong class='text-success'>✓ ":'')+
                 f.path+' <small class="text-muted">('+fmtBytes(f.size)+')</small>'+
                 (isCur?'</strong>':'')+
                 "</span><span class='btn-group'>"+
@@ -1186,6 +1203,7 @@ function dlLoadFiles() {
         el.innerHTML=html;
     });
 }
+function hwToggleSD() { var sd=document.getElementById('sdPins'),st=document.getElementById('hw-storage'); if(sd&&st)sd.style.display=st.value==='1'?'block':'none'; }
 
 // Uses storage=internal explicitly — matches original failsafe fix
 function dlDeleteFile(path) {
@@ -1289,3 +1307,6 @@ function otaUpload() {
     };
     reader.readAsArrayBuffer(file.slice(0,4));
 }
+
+function dlToggleMaxSize() { var mg=document.getElementById('maxSizeGroup'),rot=document.getElementById('dl-rotation'); if(mg&&rot)mg.style.display=rot.value==='4'?'block':'none'; }
+function closePopup() { var p=document.getElementById('popup'); if(p) p.style.display='none'; }
