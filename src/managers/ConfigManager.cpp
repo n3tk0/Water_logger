@@ -2,17 +2,18 @@
 #include "../core/Globals.h"
 #include <LittleFS.h>
 #include "esp_mac.h"
-
-
+#include <math.h>
 // ============================================================================
 // INTERNAL: apply safe defaults to any zero/empty fields
 // Called after every load path so partially-migrated or corrupt-but-recoverable
 // configs always surface sane values to the web UI.
 // ============================================================================
 static void applyDefaults() {
+    auto badFloat = [](float v){ return v <= 0.0f || !isfinite(v); };
+
     // ── Flow meter ────────────────────────────────────────────────────────────
-    if (config.flowMeter.pulsesPerLiter            <= 0) config.flowMeter.pulsesPerLiter            = 450.0f;
-    if (config.flowMeter.calibrationMultiplier     <= 0) config.flowMeter.calibrationMultiplier     = 1.0f;
+    if (badFloat(config.flowMeter.pulsesPerLiter))            config.flowMeter.pulsesPerLiter            = 450.0f;
+    if (badFloat(config.flowMeter.calibrationMultiplier))     config.flowMeter.calibrationMultiplier     = 1.0f;
     if (config.flowMeter.monitoringWindowSecs      <= 0) config.flowMeter.monitoringWindowSecs      = 3;
     if (config.flowMeter.firstLoopMonitoringWindowSecs <= 0) config.flowMeter.firstLoopMonitoringWindowSecs = 6;
     if (config.flowMeter.blinkDuration             <= 0) config.flowMeter.blinkDuration             = 250;
@@ -22,14 +23,25 @@ static void applyDefaults() {
     if (config.hardware.debounceMs  == 0) config.hardware.debounceMs  = 100;
 
     // ── Datalog ───────────────────────────────────────────────────────────────
-    if (config.datalog.pfToFfThreshold <= 0) config.datalog.pfToFfThreshold = 4.5f;
-    if (config.datalog.ffToPfThreshold <= 0) config.datalog.ffToPfThreshold = 3.7f;
+    if (badFloat(config.datalog.pfToFfThreshold)) config.datalog.pfToFfThreshold = 4.5f;
+    if (badFloat(config.datalog.ffToPfThreshold)) config.datalog.ffToPfThreshold = 3.7f;
     if (config.datalog.maxSizeKB       == 0) config.datalog.maxSizeKB       = 1024;
+    
+    if (config.datalog.maxEntries == 0) {
+        config.datalog.maxEntries = 10000;
+        config.datalog.includeBootCount = true;
+        config.datalog.includeExtraPresses = true;
+        config.datalog.postCorrectionEnabled = true;
+        config.datalog.timestampFilename = true;
+    }
+    
+    if (config.datalog.manualPressThresholdMs == 0) config.datalog.manualPressThresholdMs = 500;
     if (!strlen(config.datalog.prefix))       strcpy(config.datalog.prefix,      DEFAULT_DATALOG_PREFIX);
     if (!strlen(config.datalog.currentFile))  strcpy(config.datalog.currentFile, "/datalog.txt");
 
     // ── Network ───────────────────────────────────────────────────────────────
-    if (!strlen(config.network.apSSID))    strcpy(config.network.apSSID,    DEFAULT_AP_SSID);
+    if (!strlen(config.network.apSSID))     strcpy(config.network.apSSID,    DEFAULT_AP_SSID);
+    if (!strlen(config.network.apPassword)) strcpy(config.network.apPassword, DEFAULT_AP_PASSWORD);
     if (!strlen(config.network.ntpServer)) strcpy(config.network.ntpServer, DEFAULT_NTP_SERVER);
 
     if (!config.network.apIP[0]) {
@@ -103,9 +115,40 @@ static bool sanitizeWakeConfig() {
         changed = true;
     }
 
+    auto isSafePinC3 = [](uint8_t pin) -> bool { return pin <= 21 && !(pin >= 11 && pin <= 17); };
+
+    if (!isSafePinC3(config.hardware.pinFlowSensor) || config.hardware.pinFlowSensor == 0) {
+        config.hardware.pinFlowSensor = DefaultPins::FLOW_SENSOR;
+        changed = true;
+    }
+
+    if (!isSafePinC3(config.hardware.pinRtcCE) || 
+        !isSafePinC3(config.hardware.pinRtcIO) || 
+        !isSafePinC3(config.hardware.pinRtcSCLK)) {
+        config.hardware.pinRtcCE   = DefaultPins::RTC_CE;
+        config.hardware.pinRtcIO   = DefaultPins::RTC_IO;
+        config.hardware.pinRtcSCLK = DefaultPins::RTC_SCLK;
+        changed = true;
+    }
+
+    if (config.hardware.cpuFreqMHz != 80 && config.hardware.cpuFreqMHz != 160) {
+        config.hardware.cpuFreqMHz = 80;
+        changed = true;
+    }
+
     if (config.hardware.wakeupMode != WAKEUP_GPIO_ACTIVE_HIGH &&
         config.hardware.wakeupMode != WAKEUP_GPIO_ACTIVE_LOW) {
         config.hardware.wakeupMode = WAKEUP_GPIO_ACTIVE_HIGH;
+        changed = true;
+    }
+
+    if (isnan(config.flowMeter.pulsesPerLiter) || isinf(config.flowMeter.pulsesPerLiter) || config.flowMeter.pulsesPerLiter <= 0.0f) {
+        config.flowMeter.pulsesPerLiter = 450.0f;
+        changed = true;
+    }
+
+    if (isnan(config.flowMeter.calibrationMultiplier) || isinf(config.flowMeter.calibrationMultiplier) || config.flowMeter.calibrationMultiplier <= 0.0f) {
+        config.flowMeter.calibrationMultiplier = 1.0f;
         changed = true;
     }
 
@@ -128,7 +171,7 @@ void regenerateDeviceId() {
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char id[13];
     snprintf(id, sizeof(id), "%02X%02X%02X%02X", mac[2], mac[3], mac[4], mac[5]);
-    config.network.deviceId = String(id);
+    strncpy(config.deviceId, id, sizeof(config.deviceId) - 1);
     saveConfig();
 }
 
@@ -253,6 +296,14 @@ void migrateConfig(uint8_t fromVersion) {
         config.datalog.ffToPfThreshold        = 3.7f;
         config.datalog.manualPressThresholdMs = 500;
     }
+    if (fromVersion < 11) {
+        config.theme.showIcons = true;
+        config.theme.chartLabelFormat = LABEL_DATETIME;
+    }
+    if (fromVersion < 12) {
+        config.hardware.defaultStorageView = 0;
+        if (!strlen(config.network.apPassword)) strcpy(config.network.apPassword, DEFAULT_AP_PASSWORD);
+    }
     config.version = CONFIG_VERSION;
     saveConfig();
 }
@@ -262,7 +313,9 @@ void migrateConfig(uint8_t fromVersion) {
 // ============================================================================
 bool loadConfig() {
     // ── Mount LittleFS ────────────────────────────────────────────────────────
-    if (!LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
+    if (LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
+        littleFsAvailable = true;
+    } else {
         Serial.println("[CFG] LittleFS mount failed – using hardcoded defaults");
         loadDefaultConfig();
         return false;
@@ -332,38 +385,23 @@ bool loadConfig() {
         // Start from safe defaults then overlay whatever bytes we have
         loadDefaultConfig();
 
-        size_t headerSize      = offsetof(DeviceConfig, theme);
-        size_t datalogOffset   = offsetof(DeviceConfig, datalog);
-        size_t commonDatalogSz = offsetof(DatalogConfig, postCorrectionEnabled);
-
+        size_t headerSize = offsetof(DeviceConfig, theme);
         if (headerSize <= fileSize)
             memcpy(&config, rawBuf, headerSize);
 
-        if (offsetof(DeviceConfig, theme) + sizeof(ThemeConfig) <= fileSize)
-            memcpy(&config.theme, rawBuf + offsetof(DeviceConfig, theme), sizeof(ThemeConfig));
+        #define SAFE_COPY(field) \
+            if (offsetof(DeviceConfig, field) + sizeof(config.field) <= fileSize) \
+                memcpy(&config.field, rawBuf + offsetof(DeviceConfig, field), sizeof(config.field)); \
+            else if (offsetof(DeviceConfig, field) < fileSize) \
+                memcpy(&config.field, rawBuf + offsetof(DeviceConfig, field), fileSize - offsetof(DeviceConfig, field))
 
-        if (datalogOffset + commonDatalogSz <= fileSize)
-            memcpy(&config.datalog, rawBuf + datalogOffset, commonDatalogSz);
+        SAFE_COPY(theme);
+        SAFE_COPY(datalog);
+        SAFE_COPY(flowMeter);
+        SAFE_COPY(hardware);
+        SAFE_COPY(network);
 
-        // FlowMeter
-        size_t sizeDiff        = sizeof(DeviceConfig) - fileSize;
-        size_t oldDatalogTotal = sizeof(DatalogConfig) - sizeDiff;
-        size_t oldFlowOffset   = datalogOffset + oldDatalogTotal;
-        if (oldFlowOffset + sizeof(FlowMeterConfig) <= fileSize)
-            memcpy(&config.flowMeter, rawBuf + oldFlowOffset, sizeof(FlowMeterConfig));
-
-        // Hardware
-        size_t oldHWOffset = oldFlowOffset + sizeof(FlowMeterConfig);
-        if (oldHWOffset + sizeof(HardwareConfig) <= fileSize)
-            memcpy(&config.hardware, rawBuf + oldHWOffset, sizeof(HardwareConfig));
-
-        // Network
-        size_t oldNetOffset = oldHWOffset + sizeof(HardwareConfig);
-        if (oldNetOffset < fileSize) {
-            size_t avail = fileSize - oldNetOffset;
-            size_t copy  = avail < sizeof(NetworkConfig) ? avail : sizeof(NetworkConfig);
-            memcpy(&config.network, rawBuf + oldNetOffset, copy);
-        }
+        #undef SAFE_COPY
 
         free(rawBuf);
         Serial.printf("[CFG] Migrated %u -> %u bytes\n",
@@ -397,6 +435,7 @@ bool loadConfig() {
     config.network.apSSID[sizeof(config.network.apSSID) - 1]           = '\0';
     config.network.apPassword[sizeof(config.network.apPassword) - 1]   = '\0';
     config.network.clientSSID[sizeof(config.network.clientSSID) - 1]   = '\0';
+    config.network.clientPassword[sizeof(config.network.clientPassword) - 1] = '\0';
     config.network.ntpServer[sizeof(config.network.ntpServer) - 1]     = '\0';
     config.theme.primaryColor[sizeof(config.theme.primaryColor) - 1]   = '\0';
     config.theme.secondaryColor[sizeof(config.theme.secondaryColor) - 1] = '\0';

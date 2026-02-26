@@ -43,7 +43,7 @@ constexpr const char* DEFAULT_NTP_SERVER     = "pool.ntp.org";
 const unsigned long TEST_MODE_BLINK_MS      = 250;
 const unsigned long TEST_MODE_HOLD_MS       = 1000;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
-const int           LOG_BATCH_SIZE          = 20;
+const int           LOG_BATCH_SIZE          = 16;
 
 // ISR Debounce for flow sensor
 const unsigned long ISR_DEBOUNCE_MICROS = 1000;  // 1ms
@@ -211,8 +211,7 @@ struct NetworkConfig {
     uint8_t apIP[4];
     uint8_t apGateway[4];
     uint8_t apSubnet[4];
-    uint8_t reserved[2];
-    String deviceId;
+    uint8_t reserved[18]; // Reserved for alignment (2 + 16 bytes from removed String deviceId)
 };
 
 struct DeviceConfig {
@@ -239,5 +238,7 @@ struct LogEntry {
     float    volumeLiters;
     char     wakeupReason[10];
 };
+
+static_assert(sizeof(LogEntry) * LOG_BATCH_SIZE + 32 < 512, "RTC buffer exceeds safe budget");
 
 #pragma pack(pop)

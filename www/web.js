@@ -906,11 +906,8 @@ function changelogLoad() {
 
     fetch('/api/changelog')
         .then(function (r) {
-            if (r.ok) return r.text();
-            return fetch('/changelog.txt').then(function (r2) {
-                if (!r2.ok) throw new Error('not found');
-                return r2.text();
-            });
+            if (!r.ok) throw new Error('not found');
+            return r.text();
         })
         .then(function (txt) {
             changelogLoaded = true;           // mark loaded — re-open skips fetch
@@ -1429,12 +1426,13 @@ function settingsImport() {
 // ══ OTA UPDATE ══
 // ============================================================================
 function otaInit() {
-    if (ST) {
-        setEl('ota-currentVer', ST.version || '--');
-        setEl('fwDevice', ST.chip || '--');
-        setEl('fwHeap', fmtBytes(ST.heap));
-        setEl('fwStorage', fmtBytes(ST.freeSketch));
-    }
+    fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
+        ST = d;
+        setEl('ota-currentVer', d.version || '--');
+        setEl('fwDevice', d.chip || '--');
+        setEl('fwHeap', fmtBytes(d.heap));
+        setEl('fwStorage', fmtBytes(d.freeSketch));
+    });
 }
 
 function hwToggleSD() { var sd = document.getElementById('sdPins'), st = document.getElementById('hw-storage'); if (sd && st) sd.style.display = st.value === '1' ? 'block' : 'none'; }

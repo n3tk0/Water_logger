@@ -1,5 +1,6 @@
 #include "Utils.h"
 #include <FS.h>
+#include <vector>
 
 // getVersionString() is defined inline in Config.h – removed from here.
 
@@ -33,19 +34,31 @@ String sanitizeFilename(const String& filename) {
 }
 
 bool deleteRecursive(fs::FS& fs, const String& path) {
-    File dir = fs.open(path, FILE_READ);
-    if (!dir || !dir.isDirectory()) return fs.remove(path);
-
-    while (File entry = dir.openNextFile()) {
-        String entryName = String(entry.name());
-        String childPath = entryName.startsWith("/") ? entryName : buildPath(path, entryName);
-        bool isDir = entry.isDirectory();
-        entry.close();
-
-        if (isDir) deleteRecursive(fs, childPath);
-        else       fs.remove(childPath);
+    File dir = fs.open(path);
+    if (!dir || !dir.isDirectory()) {
+        if (dir) dir.close();
+        return fs.remove(path);
     }
 
+    std::vector<String> entries;
+    while (File entry = dir.openNextFile()) {
+        String entryName = String(entry.name());
+        entries.push_back(entryName.startsWith("/") ? entryName : buildPath(path, entryName));
+        entry.close();
+    }
     dir.close();
+
+    for (const String& childPath : entries) {
+        File child = fs.open(childPath);
+        bool isDir = child && child.isDirectory();
+        if (child) child.close();
+        
+        if (isDir) {
+            deleteRecursive(fs, childPath);
+        } else {
+            fs.remove(childPath);
+        }
+    }
+
     return fs.rmdir(path);
 }

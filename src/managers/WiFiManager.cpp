@@ -3,6 +3,7 @@
 #include "ConfigManager.h"
 #include <WiFi.h>
 #include <time.h>
+#include <esp_task_wdt.h>
 
 // ============================================================================
 // safeWiFiShutdown – КЛЮЧОВА ПОПРАВКА за проблема с рестарта
@@ -71,6 +72,7 @@ bool connectToWiFi() {
     while (WiFi.status() != WL_CONNECTED &&
            millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
         yield();
+        esp_task_wdt_reset();
         static unsigned long lastDot = 0;
         if (millis() - lastDot >= 250) { Serial.print("."); lastDot = millis(); }
     }

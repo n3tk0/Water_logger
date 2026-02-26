@@ -117,6 +117,8 @@ String getRtcDateTimeString() {
 }
 
 void configureWakeup() {
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+
     auto isRtcWakePinC3 = [](uint8_t pin) -> bool {
         return pin <= 5; // ESP32-C3 deep-sleep GPIO wake capable pins
     };

@@ -45,21 +45,27 @@ void sendJsonResponse(AsyncWebServerRequest *r, JsonDocument &doc) {
     r->send(200, "application/json", json);
 }
 
+const char RESTART_HEAD[] PROGMEM = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Restarting</title><style>body{font-family:-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;"
+    "min-height:100vh;margin:0;background:#f0f2f5}.popup{background:#fff;border-radius:16px;padding:2rem;text-align:center;"
+    "box-shadow:0 4px 20px rgba(0,0,0,0.15);max-width:350px}.icon{font-size:4rem;margin-bottom:1rem}"
+    ".title{font-size:1.5rem;font-weight:bold;margin-bottom:0.5rem}.msg{color:#666;margin-bottom:1rem}"
+    ".progress{background:#e2e8f0;border-radius:8px;height:8px;overflow:hidden;margin-top:1rem}"
+    ".bar{height:100%;background:#27ae60;width:0%;transition:width 1s linear}</style></head>"
+    "<body><div class='popup'><div class='icon'>&#x1F504;</div><div class='title'>Restarting...</div><div class='msg'>";
+
+const char RESTART_TAIL[] PROGMEM = "</div><div id='counter'>Redirecting in 5 seconds...</div>"
+    "<div class='progress'><div class='bar' id='bar'></div></div></div>"
+    "<script>var s=5,b=document.getElementById('bar'),c=document.getElementById('counter');"
+    "var t=setInterval(function(){s--;b.style.width=(100-s*20)+'%';c.textContent='Redirecting in '+s+' seconds...';"
+    "if(s<=0){clearInterval(t);window.location.href='/';}},1000);</script></body></html>";
+
 void sendRestartPage(AsyncWebServerRequest *r, const char* message) {
-    String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Restarting</title><style>body{font-family:-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;"
-        "min-height:100vh;margin:0;background:#f0f2f5}.popup{background:#fff;border-radius:16px;padding:2rem;text-align:center;"
-        "box-shadow:0 4px 20px rgba(0,0,0,0.15);max-width:350px}.icon{font-size:4rem;margin-bottom:1rem}"
-        ".title{font-size:1.5rem;font-weight:bold;margin-bottom:0.5rem}.msg{color:#666;margin-bottom:1rem}"
-        ".progress{background:#e2e8f0;border-radius:8px;height:8px;overflow:hidden;margin-top:1rem}"
-        ".bar{height:100%;background:#27ae60;width:0%;transition:width 1s linear}</style></head>"
-        "<body><div class='popup'><div class='icon'>&#x1F504;</div><div class='title'>Restarting...</div><div class='msg'>");
+    String html;
+    html.reserve(strlen_P(RESTART_HEAD) + strlen(message) + strlen_P(RESTART_TAIL) + 1);
+    html += FPSTR(RESTART_HEAD);
     html += message;
-    html += F("</div><div id='counter'>Redirecting in 5 seconds...</div>"
-        "<div class='progress'><div class='bar' id='bar'></div></div></div>"
-        "<script>var s=5,b=document.getElementById('bar'),c=document.getElementById('counter');"
-        "var t=setInterval(function(){s--;b.style.width=(100-s*20)+'%';c.textContent='Redirecting in '+s+' seconds...';"
-        "if(s<=0){clearInterval(t);window.location.href='/';}},1000);</script></body></html>");
+    html += FPSTR(RESTART_TAIL);
     r->send(200, "text/html", html);
 }
 
@@ -406,41 +412,54 @@ static String getMime(const String& path) {
 // ============================================================================
 static void scanDir(fs::FS& fs, const String& dir, JsonArray& arr,
                     const String& filter, bool recursive) {
-    String normDir = dir;
-    while (normDir.length() > 1 && normDir.endsWith("/")) normDir.remove(normDir.length()-1);
-    File d = fs.open(normDir);
-    if (!d || !d.isDirectory()) return;
-    while (File entry = d.openNextFile()) {
-        String name = String(entry.name());
-        if (name.startsWith("/")) {
-            int slash = name.lastIndexOf('/');
-            name = (slash >= 0) ? name.substring(slash + 1) : name;
+    std::vector<String> stack;
+    stack.push_back(dir);
+
+    while (!stack.empty()) {
+        String currentDir = stack.back();
+        stack.pop_back();
+
+        while (currentDir.length() > 1 && currentDir.endsWith("/")) currentDir.remove(currentDir.length() - 1);
+
+        File d = fs.open(currentDir);
+        if (!d || !d.isDirectory()) {
+            if (d) d.close();
+            continue;
         }
-        String fullPath = (normDir == "/") ? "/" + name : normDir + "/" + name;
-        bool isDir = entry.isDirectory();
-        if (isDir) {
-            if (recursive) scanDir(fs, fullPath, arr, filter, true);
-            else {
-                JsonObject o = arr.createNestedObject();
-                o["name"]  = name;
-                o["path"]  = fullPath;
-                o["isDir"] = true;
-                o["size"]  = 0;
+
+        while (File entry = d.openNextFile()) {
+            String name = String(entry.name());
+            if (name.startsWith("/")) {
+                int slash = name.lastIndexOf('/');
+                name = (slash >= 0) ? name.substring(slash + 1) : name;
             }
-        } else {
-            bool include = filter.isEmpty() ||
-                (filter == "log" && (name.endsWith(".txt") || name.endsWith(".log") || name.endsWith(".csv")));
-            if (include) {
-                JsonObject o = arr.createNestedObject();
-                o["name"]  = name;
-                o["path"]  = fullPath;
-                o["isDir"] = false;
-                o["size"]  = (uint32_t)entry.size();
+            String fullPath = (currentDir == "/") ? "/" + name : currentDir + "/" + name;
+            
+            if (entry.isDirectory()) {
+                if (recursive) {
+                    stack.push_back(fullPath);
+                } else {
+                    JsonObject o = arr.createNestedObject();
+                    o["name"]  = name;
+                    o["path"]  = fullPath;
+                    o["isDir"] = true;
+                    o["size"]  = 0;
+                }
+            } else {
+                bool include = filter.isEmpty() ||
+                    (filter == "log" && (name.endsWith(".txt") || name.endsWith(".log") || name.endsWith(".csv")));
+                if (include) {
+                    JsonObject o = arr.createNestedObject();
+                    o["name"]  = name;
+                    o["path"]  = fullPath;
+                    o["isDir"] = false;
+                    o["size"]  = (uint32_t)entry.size();
+                }
             }
+            entry.close();
         }
-        entry.close();
+        d.close();
     }
-    d.close();
 }
 
 // ============================================================================
@@ -516,11 +535,9 @@ void setupWebServer() {
                          ? WiFi.localIP().toString()
                          : WiFi.softAPIP().toString();
 
-        if (wifiConnectedAsClient) {
-            doc["gateway"] = WiFi.gatewayIP().toString();
-            doc["subnet"]  = WiFi.subnetMask().toString();
-            doc["dns"]     = WiFi.dnsIP().toString();
-        }
+        doc["gateway"] = wifiConnectedAsClient ? WiFi.gatewayIP().toString() : "";
+        doc["subnet"]  = wifiConnectedAsClient ? WiFi.subnetMask().toString() : "";
+        doc["dns"]     = wifiConnectedAsClient ? WiFi.dnsIP().toString() : "";
 
         // ── Runtime metrics ───────────────────────────────────────────────────
         doc["boot"]       = bootCount;
@@ -540,6 +557,7 @@ void setupWebServer() {
         doc["fsTotal"]            = (uint32_t)total;
         doc["fsPct"]              = pct;
         doc["defaultStorageView"] = config.hardware.defaultStorageView;
+        doc["currentFile"]        = getActiveDatalogFile();
 
         // ── RTC (null-safe) ───────────────────────────────────────────────────
         if (Rtc) {
@@ -588,6 +606,9 @@ void setupWebServer() {
         interrupts();
 
         doc["time"]      = getRtcDateTimeString();
+        doc["chip"]      = ESP.getChipModel();
+        doc["version"]   = getVersionString();
+        doc["network"]   = getNetworkDisplay();
         doc["ff"]        = digitalRead(config.hardware.pinWakeupFF);
         doc["pf"]        = digitalRead(config.hardware.pinWakeupPF);
         doc["wifi"]      = digitalRead(config.hardware.pinWifiTrigger);
@@ -661,42 +682,64 @@ void setupWebServer() {
             return;
         }
 
-        std::vector<String> lines;
+        char lastLines[5][160];
+        int lCount = 0;
+        
         while (f.available()) {
             String line = f.readStringUntil('\n');
             line.trim();
-            if (line.length() > 0) lines.push_back(line);
+            if (line.length() > 0) {
+                strncpy(lastLines[lCount % 5], line.c_str(), 159);
+                lastLines[lCount % 5][159] = '\0';
+                lCount++;
+            }
         }
         f.close();
 
-        int totalLines = (int)lines.size();
-        int startIdx   = totalLines > 5 ? totalLines - 5 : 0;
-        for (int i = totalLines - 1; i >= startIdx; i--) {
-            String line = lines[i];
-            int p1 = line.indexOf('|');
-            int p2 = line.indexOf('|', p1 + 1);
-            int p3 = line.indexOf('|', p2 + 1);
-            int p4 = line.indexOf('|', p3 + 1);
-            int p5 = line.indexOf('|', p4 + 1);
-            int p6 = line.indexOf('|', p5 + 1);
-            int p7 = line.indexOf('|', p6 + 1);
+        int count = lCount < 5 ? lCount : 5;
+        for (int i = 0; i < count; i++) {
+            int idx = (lCount - 1 - i) % 5;
+            char* lineStr = lastLines[idx];
+            
+            char* saveptr;
+            char* tokens[10];
+            int tCount = 0;
+            char* tok = strtok_r(lineStr, "|", &saveptr);
+            while (tok && tCount < 10) {
+                tokens[tCount++] = tok;
+                tok = strtok_r(NULL, "|", &saveptr);
+            }
 
-            if (p1 > 0 && p2 > p1 && p3 > p2 && p4 > p3) {
+            if (tCount >= 7) {
                 JsonObject entry = logs.createNestedObject();
-                bool isNewFmt = (p7 > p6);
-                if (isNewFmt) {
-                    entry["time"]    = line.substring(0, p1) + " " + line.substring(p1+1, p2) + "-" + line.substring(p2+1, p3);
-                    entry["trigger"] = line.substring(p4+1, p5);
-                    String vs = line.substring(p5+1, p6); vs.replace("L:", ""); vs.replace(",", "."); entry["volume"] = vs + " L";
-                    String ffs = line.substring(p6+1, p7); ffs.replace("FF", ""); entry["ff"] = ffs.toInt();
-                    String pfs = line.substring(p7+1);     pfs.replace("PF", ""); entry["pf"] = pfs.toInt();
+                int tail = tCount - 1;
+                
+                if (tCount >= 8) {
+                    char timeBuf[80];
+                    snprintf(timeBuf, sizeof(timeBuf), "%s %s-%s", tokens[0], tokens[1], tokens[2]);
+                    entry["time"] = timeBuf;
                 } else {
-                    entry["time"]    = line.substring(0, p2);
-                    entry["trigger"] = line.substring(p3+1, p4);
-                    String vs = line.substring(p4+1, p5); vs.replace("L:", ""); vs.replace(",", "."); entry["volume"] = vs + " L";
-                    String ffs = line.substring(p5+1, p6); ffs.replace("FF", ""); entry["ff"] = ffs.toInt();
-                    String pfs = line.substring(p6+1);     pfs.replace("PF", ""); entry["pf"] = pfs.toInt();
+                    char timeBuf[80];
+                    snprintf(timeBuf, sizeof(timeBuf), "%s|%s", tokens[0], tokens[1]);
+                    entry["time"] = timeBuf;
                 }
+                
+                entry["trigger"] = tokens[tail - 3];
+                
+                char* vs = tokens[tail - 2];
+                if (strncmp(vs, "L:", 2) == 0) vs += 2;
+                for (char* p = vs; *p; p++) if (*p == ',') *p = '.';
+                char volBuf[32];
+                snprintf(volBuf, sizeof(volBuf), "%s L", vs);
+                entry["volume"] = volBuf;
+                
+                char* ffs = tokens[tail - 1];
+                if (strncmp(ffs, "FF", 2) == 0) ffs += 2;
+                entry["ff"] = atoi(ffs);
+                
+                char* pfs = tokens[tail];
+                if (strncmp(pfs, "PF", 2) == 0) pfs += 2;
+                entry["pf"] = atoi(pfs);
             }
         }
         sendJsonResponse(r, doc);
@@ -827,6 +870,8 @@ void setupWebServer() {
         dl["rotation"]               = (int)config.datalog.rotation;
         dl["maxSizeKB"]              = config.datalog.maxSizeKB > 0 ? config.datalog.maxSizeKB : 1024;
         dl["folder"]                 = config.datalog.folder;
+        dl["timestampFilename"]      = config.datalog.timestampFilename;
+        dl["includeDeviceId"]        = config.datalog.includeDeviceId;
         dl["prefix"]                 = strlen(config.datalog.prefix) ? config.datalog.prefix : "datalog";
         dl["dateFormat"]             = (int)config.datalog.dateFormat;
         dl["timeFormat"]             = (int)config.datalog.timeFormat;
@@ -940,6 +985,7 @@ void setupWebServer() {
         if (r->hasParam("pinSdSCK", true))       config.hardware.pinSdSCK       = r->getParam("pinSdSCK", true)->value().toInt();
         if (r->hasParam("cpuFreqMHz", true))     config.hardware.cpuFreqMHz     = r->getParam("cpuFreqMHz", true)->value().toInt();
         if (r->hasParam("debounceMs", true))     config.hardware.debounceMs     = constrain(r->getParam("debounceMs", true)->value().toInt(), 20, 500);
+        if (r->hasParam("debugMode", true))      config.hardware.debugMode      = r->getParam("debugMode", true)->value() == "1";
         saveConfig();
         sendRestartPage(r, "Device is restarting with new hardware settings.");
         safeWiFiShutdown();
@@ -978,7 +1024,8 @@ void setupWebServer() {
         if (r->hasParam("prefix", true))       strncpy(config.datalog.prefix,      r->getParam("prefix", true)->value().c_str(), 32);
         if (r->hasParam("folder", true))       strncpy(config.datalog.folder,      r->getParam("folder", true)->value().c_str(), 32);
         if (r->hasParam("rotation", true))     config.datalog.rotation    = (DatalogRotation)r->getParam("rotation", true)->value().toInt();
-        if (r->hasParam("maxSizeKB", true))    config.datalog.maxSizeKB   = r->getParam("maxSizeKB", true)->value().toInt();
+        if (r->hasParam("maxSizeKB", true))    config.datalog.maxSizeKB   = constrain(r->getParam("maxSizeKB", true)->value().toInt(), 10, 10000);
+        if (r->hasParam("maxEntries", true))   config.datalog.maxEntries  = constrain(r->getParam("maxEntries", true)->value().toInt(), 10, 100000);
         config.datalog.timestampFilename   = r->hasParam("timestampFilename", true);
         config.datalog.includeDeviceId     = r->hasParam("includeDeviceId", true);
         if (r->hasParam("dateFormat", true))   config.datalog.dateFormat   = r->getParam("dateFormat", true)->value().toInt();
@@ -988,8 +1035,8 @@ void setupWebServer() {
         config.datalog.includeBootCount    = r->hasParam("includeBootCount", true)    && r->getParam("includeBootCount", true)->value()    == "1";
         config.datalog.includeExtraPresses = r->hasParam("includeExtraPresses", true) && r->getParam("includeExtraPresses", true)->value() == "1";
         config.datalog.postCorrectionEnabled = r->hasParam("postCorrectionEnabled", true);
-        if (r->hasParam("pfToFfThreshold", true))        config.datalog.pfToFfThreshold        = r->getParam("pfToFfThreshold", true)->value().toFloat();
-        if (r->hasParam("ffToPfThreshold", true))        config.datalog.ffToPfThreshold        = r->getParam("ffToPfThreshold", true)->value().toFloat();
+        if (r->hasParam("pfToFfThreshold", true))        config.datalog.pfToFfThreshold        = max(0.1f, r->getParam("pfToFfThreshold", true)->value().toFloat());
+        if (r->hasParam("ffToPfThreshold", true))        config.datalog.ffToPfThreshold        = max(0.1f, r->getParam("ffToPfThreshold", true)->value().toFloat());
         if (r->hasParam("manualPressThresholdMs", true)) config.datalog.manualPressThresholdMs = r->getParam("manualPressThresholdMs", true)->value().toInt();
 
         saveConfig();
@@ -1228,11 +1275,11 @@ void setupWebServer() {
             r->send(200, "application/json", "{\"ok\":true}");
         },
         [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-            static File*  _upFile = nullptr;
+            static File   _upFile;
             static String _upPath = "";
 
             if (index == 0) {
-                if (_upFile) { _upFile->close(); delete _upFile; _upFile = nullptr; }
+                if (_upFile) { _upFile.close(); }
 
                 String upDir = request->hasParam("path")
                                ? request->getParam("path")->value()
@@ -1253,21 +1300,19 @@ void setupWebServer() {
                 _upPath = (upDir == "/") ? "/" + filename : upDir + "/" + filename;
                 Serial.printf("Upload start [%s]: %s\n", upStorage.c_str(), _upPath.c_str());
 
-                _upFile = new File(targetFS->open(_upPath, FILE_WRITE));
-                if (!_upFile || !(*_upFile)) {
+                _upFile = targetFS->open(_upPath, FILE_WRITE);
+                if (!_upFile) {
                     Serial.printf("Upload: cannot open %s for write\n", _upPath.c_str());
-                    if (_upFile) { delete _upFile; _upFile = nullptr; }
                     return;
                 }
             }
 
-            if (_upFile && *_upFile && len) _upFile->write(data, len);
+            if (_upFile && len) _upFile.write(data, len);
 
             if (final) {
                 if (_upFile) {
-                    _upFile->close();
+                    _upFile.close();
                     Serial.printf("Upload done: %s (%u bytes)\n", _upPath.c_str(), (unsigned)(index + len));
-                    delete _upFile; _upFile = nullptr;
                 }
                 _upPath = "";
             }
@@ -1312,11 +1357,13 @@ void setupWebServer() {
                 if (fm["calibrationMultiplier"].is<float>())        config.flowMeter.calibrationMultiplier        = fm["calibrationMultiplier"];
                 if (fm["monitoringWindowSecs"].is<int>())           config.flowMeter.monitoringWindowSecs         = fm["monitoringWindowSecs"];
                 if (fm["firstLoopMonitoringWindowSecs"].is<int>())  config.flowMeter.firstLoopMonitoringWindowSecs= fm["firstLoopMonitoringWindowSecs"];
+                else if (fm.containsKey("firstLoopWindow"))         config.flowMeter.firstLoopMonitoringWindowSecs= fm["firstLoopWindow"] | 6;
             }
             if (doc["datalog"].is<JsonObject>()) {
                 JsonObject dl = doc["datalog"];
                 if (dl["rotation"].is<int>())               config.datalog.rotation               = (DatalogRotation)(int)dl["rotation"];
-                if (dl["maxSizeKB"].is<int>())              config.datalog.maxSizeKB              = dl["maxSizeKB"];
+                if (dl["maxSizeKB"].is<int>())              config.datalog.maxSizeKB              = constrain(dl["maxSizeKB"].as<int>(), 10, 10000);
+                if (dl.containsKey("maxEntries"))           config.datalog.maxEntries             = constrain(dl["maxEntries"].as<int>(), 10, 100000);
                 if (dl["dateFormat"].is<int>())             config.datalog.dateFormat             = dl["dateFormat"];
                 if (dl["timeFormat"].is<int>())             config.datalog.timeFormat             = dl["timeFormat"];
                 if (dl["endFormat"].is<int>())              config.datalog.endFormat              = dl["endFormat"];
@@ -1324,8 +1371,8 @@ void setupWebServer() {
                 if (dl["includeBootCount"].is<bool>())      config.datalog.includeBootCount       = dl["includeBootCount"];
                 if (dl["includeExtraPresses"].is<bool>())   config.datalog.includeExtraPresses    = dl["includeExtraPresses"];
                 if (dl["postCorrectionEnabled"].is<bool>()) config.datalog.postCorrectionEnabled  = dl["postCorrectionEnabled"];
-                if (dl["pfToFfThreshold"].is<float>())      config.datalog.pfToFfThreshold        = dl["pfToFfThreshold"];
-                if (dl["ffToPfThreshold"].is<float>())      config.datalog.ffToPfThreshold        = dl["ffToPfThreshold"];
+                if (dl["pfToFfThreshold"].is<float>())      config.datalog.pfToFfThreshold        = max(0.1f, dl["pfToFfThreshold"].as<float>());
+                if (dl["ffToPfThreshold"].is<float>())      config.datalog.ffToPfThreshold        = max(0.1f, dl["ffToPfThreshold"].as<float>());
                 if (dl["manualPressThresholdMs"].is<int>()) config.datalog.manualPressThresholdMs = dl["manualPressThresholdMs"];
             }
             if (doc["network"].is<JsonObject>()) {
@@ -1342,13 +1389,18 @@ void setupWebServer() {
                 if (hw["cpuFreqMHz"].is<int>())         config.hardware.cpuFreqMHz         = hw["cpuFreqMHz"];
                 if (hw["defaultStorageView"].is<int>()) config.hardware.defaultStorageView = hw["defaultStorageView"];
                 if (hw["debounceMs"].is<int>())         config.hardware.debounceMs         = hw["debounceMs"];
+                if (hw.containsKey("debugMode"))        config.hardware.debugMode          = hw["debugMode"].as<bool>();
             }
             saveConfig();
             r->send(200, "text/plain", "OK");
         },
         [](AsyncWebServerRequest *req, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-            if (!index) _importBuf = "";
-            for (size_t i = 0; i < len; i++) _importBuf += (char)data[i];
+            if (!index) {
+                _importBuf = "";
+                _importBuf.reserve(req->contentLength() > 0 ? req->contentLength() : 4096);
+            }
+            if (_importBuf.length() + len > 8192) return; // Hard cap
+            _importBuf.concat((const char*)data, len);
         }
     );
 

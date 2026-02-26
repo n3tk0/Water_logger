@@ -4,14 +4,16 @@
 #include <LittleFS.h>
 #include <SD.h>
 #include <SPI.h>
-#include <functional>
+#include <vector>
 
 bool initStorage() {
     DBGLN("Init LittleFS...");
     // Explicitly using "spiffs" label for maximum compatibility on ESP32
-    if (LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
-        DBGLN("LittleFS OK");
+    if (!littleFsAvailable && LittleFS.begin(true, "/littlefs", 10, "spiffs")) {
         littleFsAvailable = true;
+    }
+    if (littleFsAvailable) {
+        DBGLN("LittleFS OK");
     } else {
         DBGLN("LittleFS FAILED! Check partition scheme.");
         littleFsAvailable = false;
@@ -80,7 +82,7 @@ void getStorageInfo(uint64_t& used, uint64_t& total, int& percent,
     if (total > 0) percent = (used * 100ULL) / total;
 }
 
-String getStorageBarColor(int percent) {
+const char* getStorageBarColor(int percent) {
     if (percent >= 90) return config.theme.storageBar90Color;
     if (percent >= 70) return config.theme.storageBar70Color;
     return config.theme.storageBarColor;
@@ -91,14 +93,25 @@ String generateDatalogFileOptions() {
     String html = "";
     String currentFile = getActiveDatalogFile();
 
-    std::function<void(const String&)> scanDir = [&](const String& path) {
+    std::vector<String> dirs;
+    dirs.push_back("/");
+
+    while (!dirs.empty()) {
+        String path = dirs.back();
+        dirs.pop_back();
+
         File dir = activeFS->open(path);
-        if (!dir || !dir.isDirectory()) return;
+        if (!dir || !dir.isDirectory()) {
+            if (dir) dir.close();
+            continue;
+        }
+
         while (File entry = dir.openNextFile()) {
-            String name     = String(entry.name());
+            String name = String(entry.name());
             String fullPath = path == "/" ? "/" + name : path + "/" + name;
+            
             if (entry.isDirectory()) {
-                scanDir(fullPath);
+                dirs.push_back(fullPath);
             } else if (name.endsWith(".txt") || name.endsWith(".log") || name.endsWith(".csv")) {
                 String sel = (fullPath == currentFile) ? "selected" : "";
                 html += "<option value='" + fullPath + "' " + sel + ">" + fullPath + "</option>";
@@ -106,26 +119,36 @@ String generateDatalogFileOptions() {
             entry.close();
         }
         dir.close();
-    };
-    scanDir("/");
+    }
     return html.length() > 0 ? html : "<option value='/datalog.txt'>datalog.txt</option>";
 }
 
 int countDatalogFiles() {
     if (!fsAvailable || !activeFS) return 0;
     int count = 0;
-    std::function<void(const String&)> scanDir = [&](const String& path) {
+    
+    std::vector<String> dirs;
+    dirs.push_back("/");
+
+    while (!dirs.empty()) {
+        String path = dirs.back();
+        dirs.pop_back();
+
         File dir = activeFS->open(path);
-        if (!dir || !dir.isDirectory()) return;
+        if (!dir || !dir.isDirectory()) {
+            if (dir) dir.close();
+            continue;
+        }
+
         while (File entry = dir.openNextFile()) {
-            String name     = String(entry.name());
+            String name = String(entry.name());
             String fullPath = path == "/" ? "/" + name : path + "/" + name;
-            if (entry.isDirectory()) scanDir(fullPath);
+            
+            if (entry.isDirectory()) dirs.push_back(fullPath);
             else if (name.endsWith(".txt") || name.endsWith(".log") || name.endsWith(".csv")) count++;
             entry.close();
         }
         dir.close();
-    };
-    scanDir("/");
+    }
     return count;
 }

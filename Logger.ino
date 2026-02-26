@@ -59,11 +59,11 @@ void setup() {
     isrDebounceUs = (unsigned long)config.hardware.debounceMs * 1000UL;
 
     initStorage();
-    initStorage();
+
+    int expectedActive = (config.hardware.wakeupMode == WAKEUP_GPIO_ACTIVE_HIGH) ? HIGH : LOW;
 
     // ── Measure button hold duration ─────────────────────────────────────────
     if (earlyGPIO_captured) {
-        int expectedActive = (config.hardware.wakeupMode == WAKEUP_GPIO_ACTIVE_HIGH) ? HIGH : LOW;
         bool ffStill = (digitalRead(config.hardware.pinWakeupFF) == expectedActive);
         bool pfStill = (digitalRead(config.hardware.pinWakeupPF) == expectedActive);
         if (ffStill || pfStill) {
@@ -76,10 +76,12 @@ void setup() {
             }
             buttonHeldMs = millis() - holdStart;
         } else {
-            buttonHeldMs = millis() - earlyGPIO_millis;
+            buttonHeldMs = 0;
         }
         Serial.printf("Button held: %lums\n", buttonHeldMs);
     }
+
+    initHardware();   // Configure pin modes AND initialize RTC BEFORE reading time
 
     // ── Wake timestamp ────────────────────────────────────────────────────────
     if (Rtc) {
@@ -92,13 +94,10 @@ void setup() {
     backupBootCount();
     DBGF("Boot count: %d\n", bootCount);
 
-    initHardware();   // Configure pin modes BEFORE reading fallback states
-
     // ── Wake reason ───────────────────────────────────────────────────────────
     wakeUpButtonStr = getWakeupReason();
     Serial.printf("Wake reason: %s\n", wakeUpButtonStr.c_str());
 
-    int  expectedActive = (config.hardware.wakeupMode == WAKEUP_GPIO_ACTIVE_HIGH) ? HIGH : LOW;
     int  wifiTrigState  = digitalRead(config.hardware.pinWifiTrigger);
 
     apModeTriggered = (wifiTrigState == expectedActive) ||
@@ -248,6 +247,7 @@ void loop() {
                 DBGLN("No button -> sleep");
                 configureWakeup();
                 Serial.flush();
+                safeWiFiShutdown(); delay(50);
                 esp_deep_sleep_start();
             }
             break;
@@ -285,7 +285,7 @@ void loop() {
                 if (config.datalog.postCorrectionEnabled &&
                     highCountFF == 0 && highCountPF == 0 &&
                     corrVol > 0 && !extendedHold) {
-                    String orig = cycleStartedBy;
+                    const char* orig = cycleStartedBy.c_str();
                     bool corrected = false;
                     if (cycleStartedBy == "PF_BTN" && corrVol >= config.datalog.pfToFfThreshold) {
                         cycleStartedBy = "FF_BTN";
@@ -297,11 +297,15 @@ void loop() {
                         corrected = true;
                     }
                     if (corrected && fsAvailable && activeFS) {
-                        String folder = String(config.datalog.folder);
-                        if (folder.length() > 0 && !folder.startsWith("/")) folder = "/" + folder;
-                        if (folder.length() > 0 && !folder.endsWith("/"))   folder += "/";
-                        if (folder.isEmpty()) folder = "/";
-                        String btnLogPath = folder + "btn_log.txt";
+                        char btnLogPath[80];
+                        size_t flen = strlen(config.datalog.folder);
+                        if (flen == 0 || (flen == 1 && config.datalog.folder[0] == '/')) {
+                            snprintf(btnLogPath, sizeof(btnLogPath), "/btn_log.txt");
+                        } else {
+                            const char* slash = (config.datalog.folder[flen - 1] == '/') ? "" : "/";
+                            const char* lead  = (config.datalog.folder[0] == '/') ? "" : "/";
+                            snprintf(btnLogPath, sizeof(btnLogPath), "%s%s%sbtn_log.txt", lead, config.datalog.folder, slash);
+                        }
                         File btnLog = activeFS->open(btnLogPath, FILE_APPEND);
                         if (btnLog) {
                             int exp = (config.hardware.wakeupMode == WAKEUP_GPIO_ACTIVE_HIGH) ? HIGH : LOW;
@@ -313,7 +317,7 @@ void loop() {
                                 "#:%d|bitmask:0x%04X|early:FF=%d,PF=%d,WIFI=%d|held:%lums|CORR:%s->%s|L:%.2f",
                                 bootCount, earlyGPIO_bitmask,
                                 ffSnap, pfSnap, wifiSnap,
-                                buttonHeldMs, orig.c_str(), cycleStartedBy.c_str(), corrVol);
+                                buttonHeldMs, orig, cycleStartedBy.c_str(), corrVol);
                             btnLog.println(line);
                             btnLog.close();
                         }
@@ -335,6 +339,7 @@ void loop() {
                 configureWakeup();
                 DBGLN("Deep sleep...");
                 Serial.flush();
+                safeWiFiShutdown(); delay(50);
                 esp_deep_sleep_start();
             }
             break;
