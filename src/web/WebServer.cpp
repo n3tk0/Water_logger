@@ -516,6 +516,12 @@ void setupWebServer() {
                          ? WiFi.localIP().toString()
                          : WiFi.softAPIP().toString();
 
+        if (wifiConnectedAsClient) {
+            doc["gateway"] = WiFi.gatewayIP().toString();
+            doc["subnet"]  = WiFi.subnetMask().toString();
+            doc["dns"]     = WiFi.dnsIP().toString();
+        }
+
         // ── Runtime metrics ───────────────────────────────────────────────────
         doc["boot"]       = bootCount;
         doc["heap"]       = ESP.getFreeHeap();

@@ -496,10 +496,12 @@
 
       <!-- Changelog -->
       <div class="card">
-        <div class="card-header" onclick="changelogToggle()" style="cursor:pointer">
-          📜 Change Log <small class="text-muted">(tap)</small>
+        <div class="card-header" onclick="changelogToggle()"
+          style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span>📜 Change Log <small class="text-muted">(tap)</small></span>
+          <span id="changelogChevron" style="transition: transform 0.3s;">▼</span>
         </div>
-        <div class="card-body" id="changelog" style="display:none" data-loaded="">
+        <div class="card-body hidden" id="changelog" data-loaded="">
           <div class="text-muted" id="sd_clContent">Loading...</div>
         </div>
       </div>
@@ -1099,6 +1101,12 @@
           <div class="card-header">🔧 Client Network Properties</div>
           <div class="card-body">
             <div class="form-row" id="staticFields">
+              <!-- Hidden fields to store current connection details when form is un-checked -->
+              <input type="hidden" id="net-ip2-current" value="">
+              <input type="hidden" id="net-gw-current" value="">
+              <input type="hidden" id="net-sn-current" value="">
+              <input type="hidden" id="net-dns-current" value="">
+
               <div class="form-group"><label class="form-label">IP Address</label><input type="text" name="staticIP"
                   id="net-ip2" class="form-input" disabled></div>
               <div class="form-group"><label class="form-label">Gateway</label> <input type="text" name="gateway"
@@ -1335,19 +1343,16 @@
   <!-- ═══ FOOTER ═══ -->
   <footer class="app-footer">
     <div class="footer-grid">
-      <div><strong>Water Logger</strong> <span id="footer-ver" class="text-muted" style="font-size:0.75rem"></span>
-      </div>
-      <div>Boot: <span id="footer-boot" class="text-primary">--</span></div>
+      <span>🔄 Boot: <span id="footer-boot" class="text-primary">--</span></span>
+      <span>⚡ CPU: <span id="footer-cpu">--</span> MHz</span>
+      <span>💾 <span id="footer-heap">--</span></span>
     </div>
     <div class="footer-row">
-      <div><span id="footer-net"></span> IP: <span id="footer-ip"></span></div>
-      <div>Heap: <span id="footer-heap">--</span></div>
-    </div>
-    <div class="footer-row">
-      <div><span id="footer-chip"></span> <span id="footer-cpu"></span>MHz</div>
+      <span>📶 <span id="footer-net">--</span></span>
+      <span style="text-align:right">IP: <span id="footer-ip">--</span></span>
     </div>
     <div class="footer-version">
-      Created by Petko Georgiev
+      Board: <span id="footer-chip">--</span> - Firmware: <span id="footer-ver">--</span>
     </div>
   </footer>
 

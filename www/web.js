@@ -1009,6 +1009,13 @@ function netInit() {
         ST = d;
         setEl('net-status', d.wifi === 'client' ? 'Connected: ' + (d.network || '') : 'AP Mode');
         setEl('net-ip', d.ip);
+        if (d.wifi === 'client') {
+            setVal('net-ip2-current', d.ip || '');
+            setVal('net-gw-current', d.gateway || '');
+            setVal('net-sn-current', d.subnet || '');
+            setVal('net-dns-current', d.dns || '');
+        }
+        netToggleStatic(); // Trigger UI update based on new loaded current properties
     });
     fetch('/export_settings').then(function (r) { return r.json(); }).then(function (d) {
         CFG = d; var net = d.network || {};
@@ -1019,8 +1026,8 @@ function netInit() {
         setVal('net-apSN', net.apSubnet || '');
         setVal('net-cSSID', net.clientSSID); setVal('net-cPass', net.clientPassword || '');
         setChk('net-staticCheck', net.useStaticIP);
-        setVal('net-ip2', net.staticIP || ''); setVal('net-gw', net.gateway || '');
-        setVal('net-sn', net.subnet || ''); setVal('net-dns', net.dns || '');
+        setVal('net-ip2', net.staticIP || '0.0.0.0'); setVal('net-gw', net.gateway || '0.0.0.0');
+        setVal('net-sn', net.subnet || '0.0.0.0'); setVal('net-dns', net.dns || '0.0.0.0');
         netToggleStatic();
     });
 }
@@ -1038,6 +1045,22 @@ function netToggleMode() {
 // Matches original: function toggleStatic()
 function netToggleStatic() {
     var en = document.getElementById('staticCheck') && document.getElementById('staticCheck').checked;
+
+    // Manage which values are in the text inputs: current connection vs static config
+    if (!en && ST && ST.wifi === 'client') {
+        // Not using static, and we are connected: show current DHCP details
+        setVal('net-ip2', getVal('net-ip2-current'));
+        setVal('net-gw', getVal('net-gw-current'));
+        setVal('net-sn', getVal('net-sn-current'));
+        setVal('net-dns', getVal('net-dns-current'));
+    } else if (CFG && CFG.network) {
+        // Enforce restoring CFG when we switch back to 'static'
+        setVal('net-ip2', CFG.network.staticIP || '0.0.0.0');
+        setVal('net-gw', CFG.network.gateway || '0.0.0.0');
+        setVal('net-sn', CFG.network.subnet || '0.0.0.0');
+        setVal('net-dns', CFG.network.dns || '0.0.0.0');
+    }
+
     ['net-ip2', 'net-gw', 'net-sn', 'net-dns'].forEach(function (id) {
         var el = document.getElementById(id); if (!el) return;
         el.disabled = !en; el.style.opacity = en ? '1' : '0.5'; el.style.cursor = en ? 'text' : 'not-allowed';
