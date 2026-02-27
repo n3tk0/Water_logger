@@ -539,6 +539,8 @@ void setupWebServer() {
                          ? WiFi.localIP().toString()
                          : WiFi.softAPIP().toString();
 
+        doc["rssi"]    = wifiConnectedAsClient ? WiFi.RSSI() : -100;
+
         doc["gateway"] = wifiConnectedAsClient ? WiFi.gatewayIP().toString() : "";
         doc["subnet"]  = wifiConnectedAsClient ? WiFi.subnetMask().toString() : "";
         doc["dns"]     = wifiConnectedAsClient ? WiFi.dnsIP().toString() : "";

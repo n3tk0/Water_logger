@@ -1146,7 +1146,18 @@ function netInit() {
     fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
         ST = d;
         setEl('net-status', d.wifi === 'client' ? 'Connected: ' + (d.network || '') : 'AP Mode');
-        setEl('net-ip', d.ip);
+        var rssiVal = d.rssi !== undefined ? d.rssi : -100;
+        var rSvg = getRssiInfo(rssiVal);
+        var textEl = document.getElementById('net-rssi');
+        if (textEl) {
+            textEl.innerText = d.rssi !== undefined ? d.rssi + ' dBm' : '-';
+            textEl.style.color = ''; // Remove inline color
+        }
+        var iconEl = document.getElementById('net-rssi-icon');
+        if (iconEl) {
+            iconEl.innerHTML = rSvg;
+            iconEl.style.color = ''; // Remove inline color
+        }
         if (d.wifi === 'client') {
             setVal('net-ip2-current', d.ip || '');
             setVal('net-gw-current', d.gateway || '');
@@ -1170,6 +1181,21 @@ function netInit() {
     });
 }
 
+function getRssiInfo(rssi) {
+    var bars = 0, cls = 'text-muted';
+    if (rssi >= -50) { bars = 4; cls = 'text-success'; }
+    else if (rssi >= -70) { bars = 3; cls = 'text-primary'; }
+    else if (rssi >= -80) { bars = 2; cls = 'text-warning'; }
+    else if (rssi >= -90) { bars = 1; cls = 'text-danger'; }
+
+    var svg = '<svg width="16" height="14" viewBox="0 0 16 14" class="' + cls + '" fill="currentColor" style="vertical-align:middle">';
+    svg += '<rect x="0" y="10" width="3" height="4" rx="1" fill="' + (bars >= 1 ? 'currentColor' : '#ccc') + '"/>';
+    svg += '<rect x="4" y="7" width="3" height="7" rx="1" fill="' + (bars >= 2 ? 'currentColor' : '#ccc') + '"/>';
+    svg += '<rect x="8" y="4" width="3" height="10" rx="1" fill="' + (bars >= 3 ? 'currentColor' : '#ccc') + '"/>';
+    svg += '<rect x="12" y="0" width="3" height="14" rx="1" fill="' + (bars >= 4 ? 'currentColor' : '#ccc') + '"/>';
+    svg += '</svg>';
+    return svg;
+}
 
 // Matches original: function toggleMode()
 function netToggleMode() {
