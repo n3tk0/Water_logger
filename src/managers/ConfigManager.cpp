@@ -491,8 +491,7 @@ bool saveConfig() {
         return false;
     }
 
-    // Atomic-ish rename: LittleFS rename overwrites the destination
-    LittleFS.remove(CONFIG_FILE);
+    // Atomic rename: LittleFS rename overwrites the destination
     if (!LittleFS.rename(TMP_FILE, CONFIG_FILE)) {
         DBGLN("Config rename failed");
         return false;

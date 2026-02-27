@@ -277,9 +277,9 @@ void loop() {
             if (hasActivity) {
                 // Post-correction (safe division)
                 float ppl = config.flowMeter.pulsesPerLiter;
-                if (ppl < 1.0f) ppl = 450.0f;
+                if (ppl < 1.0f || !isfinite(ppl)) ppl = 450.0f;
                 float cal = config.flowMeter.calibrationMultiplier;
-                if (cal <= 0.0f) cal = 1.0f;
+                if (cal <= 0.0f || !isfinite(cal)) cal = 1.0f;
                 float corrVol = (float)currentPulses / ppl * cal;
                 bool extendedHold = (config.datalog.manualPressThresholdMs > 0) &&
                                     (buttonHeldMs >= config.datalog.manualPressThresholdMs);
