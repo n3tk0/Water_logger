@@ -1,99 +1,39 @@
 ## v4.2.0 - Production audit hardening
-- CRITICAL: Crash-safe config writes (write-to-temp-then-rename pattern prevents corruption on power loss)
-- CRITICAL: Division-by-zero guard on pulsesPerLiter/calibrationMultiplier in all calculation paths
-- CRITICAL: save_hardware/save_network now use deferred restart (response is sent before ESP.restart)
-- CRITICAL: Upload handler uses per-request file handle instead of static — safe for concurrent uploads
-- CRITICAL: /api/recent_logs uses efficient tail-seek (last 1KB) instead of reading entire file — prevents heap exhaustion
-- CRITICAL: maxEntries limit now enforced — oldest log entries trimmed when limit exceeded
-- WARNING: All strncpy calls in save handlers replaced with SAFE_STRNCPY (guaranteed null-termination)
-- WARNING: StaticJsonDocument size increased to 2048 for /api/status to prevent overflow
-- WARNING: /delete endpoint now accepts POST (preferred) in addition to GET (legacy compat)
-- WARNING: IP address parsing validates sscanf return value (all 4 octets required)
-- WARNING: Removed dead FlowSensor->count() call from ISR (Sensor never instantiated)
-- WARNING: config.hardware.version now synced in migrateConfig()
-- WARNING: accentColor field added to applyDefaults()
-- WARNING: save_datalog file creation failure now returns proper error response
-- WARNING: loggingState bounds-checked before array access in /api/live
-- WARNING: Duplicate esp_sleep_disable_wakeup_source call removed
-- OPT: Static lastDot in connectToWiFi changed to local (no stale value between calls)
-- OPT: _importBuf releases heap on clear (= String() vs = "")
-- OPT: Log entry line builder uses String::reserve(120)
-- OPT: bootCount safely cast to uint16_t with mask in LogEntry
-- CONFIG_VERSION remains 12 (no struct layout changes)
+- [Fixed] Implemented crash-safe configuration writes, division-by-zero guards, and resolved numerous memory and bounds-checking vulnerabilities.
+- [Optimized] Improved memory and file efficiency using tail-seek for endpoints, safe string replacements, and better variable localization.
+- [Changed] Updated core APIs to support concurrent uploads, deferred restarts, and preferred secure HTTP methods.
+- [Added] Added IP address validation and synchronized schema defaults.
 
 ## v4.1.5 - SPA refactor & recovery hardening
-- Web UI migrated to external SPA in LittleFS `/www/` (`index.html`, `web.js`, `style.css`).
-- Added robust recovery flow:
-  - Failsafe embedded setup page when `/www/index.html` is missing.
-  - `/setup` route is always available for recovery uploads, even if SPA is broken.
-- Config/data loading cleanup in SPA:
-  - Settings pages now use `/export_settings` for full configuration objects.
-  - Runtime-only status (IP/mode/live state) remains sourced from `/api/status`.
-  - Startup now fetches `/api/status` + `/export_settings` in parallel and caches as `ST`/`CFG`.
-- Dashboard/Data/Files correctness fixes:
-  - CSV export filename adds `_noZero` when "Exclude 0.00L" is active.
-  - Live state hint uses timing from `CFG.flowMeter`.
-  - Datalog current file is taken from `/api/filelist`; form values from `/export_settings`.
-  - Files default tab uses `CFG.hardware.defaultStorageView`.
-- Chart.js loader improved: idempotent load, supports local path or CDN with fallback, shows dashboard warning if both fail.
-- OTA upload safety checks before flashing: `.bin` extension, minimum size 10 KB, ESP magic byte `0xE9`.
-- Version patch increment: 4 → 5.
+- [Changed] Migrated to an external SPA Web UI with parallel data loading.
+- [Added] Failsafe recovery flow with an embedded setup page and OTA flash safety checks.
+- [Fixed] Corrected Dashboard/File UI logic, CSV export filenames, and Chart.js fallback loading.
+- [Optimized] Streamlined API endpoints by centralizing settings exports.
 
 ## v4.1.4 - Post-correction improvements
-- Button hold duration measurement: tracks how long flush plate button is pressed
-- Extended hold (≥ threshold) skips post-correction — extra volume is intentional
-- manualPressThresholdMs setting in Data Log / Post-Correction (default 500ms, 0 = disabled)
-- Post-Correction card hides fields when disabled for cleaner UI
-- Updated description text to explain hold-time filtering
-- Version format fix: single digit patch number (v4.1.4)
-- Fixed loadConfig() to handle struct size changes during config migration
+- [Added] Button hold tracking to skip post-correction on intentional long presses.
+- [Fixed] Corrected config migration for struct size changes and patch version formatting.
+- [Optimized] Streamlined Post-Correction UI and updated descriptions.
 
 ## v4.1.3 - Wake-up detection accuracy & UI consistency
-- Early GPIO snapshot: reads button pins immediately at boot (< 1ms), before loadConfig/initStorage/initHardware
-- Captures reed switch state before magnet passes (~50-200ms window), solving misidentification
-- Volume-based post-correction: auto-corrects button ID if volume doesn't match expected range
-  - PF_BTN with volume ≥ threshold → corrected to FF_BTN
-  - FF_BTN with volume ≤ threshold → corrected to PF_BTN
-  - Thresholds configurable in Settings / Data Log
-  - Enable/disable via checkbox
-- Post-correction events logged to btn_log.txt (same storage path as datalog)
-  - Format: boot count, GPIO bitmask, early snapshot, correction direction, volume
-- CONFIG_VERSION 10: added postCorrectionEnabled, pfToFfThreshold, ffToPfThreshold to DatalogConfig
-- UI consistency fixes:
-  - Device page-header div properly closed
-  - Hardware warning shows full description
-  - Save buttons standardized: "Save" for normal, "Save & Restart" for restart-required
-  - Form hints use consistent form-hint class
-  - Move/Rename popup button renamed to "Apply"
+- [Added] Volume-based post-correction system with threshold settings and dedicated logging.
+- [Fixed] Button misidentification resolved via early (< 1ms) GPIO boot snapshots.
+- [Optimized] Standardized UI components (save buttons, warnings, form hints).
 
 ## v4.1.2 - Wake-up fix
-- Reverted to debounce-based button detection (esp_sleep_get_gpio_wakeup_status unreliable on ESP32-C3)
-- Reads all button states after debounce delay, FF has priority
-- CSS moved to external /style.css file (~30KB flash saved)
+- [Fixed] Reverted to reliable debounce-based button detection for ESP32-C3 compatibility.
+- [Optimized] Extracted CSS to an external file, freeing ~30KB of flash storage.
 
 ## v4.1.1 - UI & optimization
-- File Manager: Move/Rename popup with folder selection
-- Settings hints: Hardware, Theme, Datalog descriptions
-- Restart popup unified (Hardware & Network use same helper)
-- Code size reduced (~5KB saved)
+- [Added] Folder selection for Move/Rename features and added settings hints.
+- [Optimized] Unified popups and reduced overall code footprint.
 
 ## v4.1.0 - Reliability improvements
-- Wake-up uses esp_sleep_get_gpio_wakeup_status() for accurate button ID
-- Button debounce configurable in Settings > Hardware (20-500ms, default 100ms)
-- Edge detection for buttons - prevents multiple counts from held buttons
-- Non-blocking WiFi connect (doesn't delay button detection at startup)
-- Web handlers block during active measurement to prevent interference
-- Normal mode: auto-sleep after 2s if no button pressed at boot
+- [Added] Configurable button debounce and edge detection handling.
+- [Fixed] Web handler interference blocked during active measurements.
+- [Optimized] Non-blocking WiFi connects and introduced auto-sleep optimizations.
 
 ## v4.0.0 - Major release
-- Removed multi-language (English only, saves ~5KB flash)
-- Removed IconConfig from struct (config reset on upgrade)
-- System files always from LittleFS (logo, board, favicon, chart)
-- Dashboard: "Buttons Only" filter, "Exclude 0.00L" checkbox
-- Dashboard: Export filtered data to CSV
-- Settings: Import/Export with progress bars
-- Settings: Manual Device ID editing
-- File Manager: Upload progress bar
-- Datalog includes wake time AND sleep time
-- Restart button with confirmation popup
-- Test Mode: WiFi pin as LED output for visual check
+- [Added] Dashboard data filters, CSV export, configuration Import/Export components, and test mode visual indicators.
+- [Changed] System resources seamlessly migrated to LittleFS.
+- [Optimized] Removed multi-language support to conserve flash memory space.
