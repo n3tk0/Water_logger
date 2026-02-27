@@ -1028,7 +1028,8 @@
       <div class="card-body">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
           <span><strong>Status:</strong> <span id="net-status">–</span></span>
-          <span style="display:flex;align-items:center;gap:6px;"><strong>Signal strength:</strong> <span id="net-rssi-icon"></span><span id="net-rssi">–</span></span>
+          <span style="display:flex;align-items:center;gap:6px;"><strong>Signal strength:</strong> <span
+              id="net-rssi-icon"></span><span id="net-rssi">–</span></span>
         </div>
       </div>
     </div>
@@ -1168,7 +1169,7 @@
             <div class="form-group"><label class="form-label">Time</label><input type="time" name="time" required
                 class="form-input"></div>
           </div>
-          <button type="submit" class="btn btn-success btn-block">⏰ Set Time</button>
+          <button type="submit" class="btn btn-primary btn-block">⏰ Set Time</button>
         </form>
       </div>
     </div>
@@ -1181,9 +1182,6 @@
           style="margin:0; padding:4px 8px; font-size:0.85rem; line-height:1;">⏳ Loading...</div>
       </div>
       <div class="card-body">
-        <form onsubmit="timeSyncNTP(event)" style="margin-bottom:1rem" id="ntpForm">
-          <button type="submit" class="btn btn-primary" id="ntpBtn">🔄 NTP Sync</button>
-        </form>
         <form onsubmit="settingsSave(event,'/save_time',this)">
           <div class="form-row">
             <div class="form-group">
@@ -1195,8 +1193,12 @@
               <input type="number" name="timezone" id="time-tz" min="-12" max="14" class="form-input" value="2">
             </div>
           </div>
-          <button type="submit" class="btn btn-secondary">💾 Save NTP Settings</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <button type="submit" class="btn btn-primary">💾 Save NTP Settings</button>
+            <button type="submit" form="ntpForm" class="btn btn-secondary" id="ntpBtn">🔄 NTP Sync</button>
+          </div>
         </form>
+        <form onsubmit="timeSyncNTP(event)" id="ntpForm" style="display:none;"></form>
       </div>
     </div>
 
