@@ -2,7 +2,7 @@
 
 This file is a cleaned and readable version of the original BOM and power notes for the **Version 2** hardware.
 
-> ⚠️ The cost columns are preserved exactly as originally recorded (including values that may appear inconsistent).
+> ⚠️ The cost columns are based on local BG suppliers from 2025.
 
 ## Components (Version 2) for 5pcs
 
